@@ -1,0 +1,1 @@
+# smart-walk-planner
