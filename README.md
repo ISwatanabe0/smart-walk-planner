@@ -5,7 +5,7 @@
 ## 特徴
 - **無料API完結**: Google Maps APIを使わず、OpenStreetMap(Overpass API)でコストを抑えた開発。
 - **こだわり検索**: 大通り回避、信号回避、観光名所経由のカスタマイズ。
-- **Google Maps連携**: 作成したルートをスマホのGoogleマップへ一発同期。
+- **Google Maps連携**: 作成したルートをスマホのGoogleマップへ同期。
 
 ## 技術スタック
 - **Frontend**: Next.js / TypeScript
