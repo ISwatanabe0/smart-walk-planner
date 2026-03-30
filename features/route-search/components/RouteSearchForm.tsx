@@ -1,6 +1,10 @@
 "use client";
 
 import { StartLocationInput } from "./StartLocationInput";
+import { DistanceTimeInput } from "./DistanceTimeInput";
+import { PreferenceSelector } from "./PreferenceSelector";
+import { Button } from "@/components/ui/Button";
+import { SectionCard } from "@/components/ui/SectionCard";
 import type { RouteSearchCondition, ValidationError } from "@/types/preferences";
 import type { Coordinate } from "@/types/map";
 
@@ -19,18 +23,10 @@ export function RouteSearchForm({
   isLoading,
   errors,
 }: RouteSearchFormProps) {
-  const startError = errors.find((e) => e.field === "start");
   const distanceError = errors.find((e) => e.field === "distanceMeters");
 
   const handleCoordinateChange = (coordinate: Coordinate | null) => {
     onChange({ ...value, start: coordinate });
-  };
-
-  const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const distanceMeters = parseInt(e.target.value, 10);
-    if (!isNaN(distanceMeters)) {
-      onChange({ ...value, distanceMeters });
-    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,24 +36,42 @@ export function RouteSearchForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <StartLocationInput
-        coordinate={value.start}
-        onCoordinateChange={handleCoordinateChange}
-      />
-      {startError !== undefined && <p>{startError.message}</p>}
-      <div>
-        <label htmlFor="distanceMeters">距離 (m)</label>
-        <input
-          id="distanceMeters"
-          type="number"
-          value={value.distanceMeters}
-          onChange={handleDistanceChange}
+      <SectionCard title="出発地点">
+        <StartLocationInput
+          coordinate={value.start}
+          onCoordinateChange={handleCoordinateChange}
         />
-        {distanceError !== undefined && <p>{distanceError.message}</p>}
-      </div>
-      <button type="submit" disabled={isLoading}>
-        ルートを検索
-      </button>
+        {errors.find((e) => e.field === "start") !== undefined && (
+          <p className="field-error">
+            {errors.find((e) => e.field === "start")?.message}
+          </p>
+        )}
+      </SectionCard>
+
+      <SectionCard title="目標距離・時間">
+        <DistanceTimeInput
+          distanceMeters={value.distanceMeters}
+          durationMinutes={value.durationMinutes}
+          onDistanceChange={(distanceMeters) =>
+            onChange({ ...value, distanceMeters })
+          }
+          onDurationChange={(durationMinutes) =>
+            onChange({ ...value, durationMinutes })
+          }
+          errors={distanceError !== undefined ? [distanceError.message] : []}
+        />
+      </SectionCard>
+
+      <SectionCard title="ルートの条件">
+        <PreferenceSelector
+          preferences={value.preferences}
+          onChange={(preferences) => onChange({ ...value, preferences })}
+        />
+      </SectionCard>
+
+      <Button type="submit" disabled={isLoading} fullWidth>
+        {isLoading ? "生成中..." : "ルートを生成"}
+      </Button>
     </form>
   );
 }

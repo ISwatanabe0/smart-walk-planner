@@ -22,11 +22,24 @@ export function ConfirmDialog({
   }
 
   return (
-    <div role="dialog" aria-modal="true">
-      <h2>{title}</h2>
-      <p>{message}</p>
-      <button onClick={onConfirm}>{confirmLabel}</button>
-      <button onClick={onCancel}>{cancelLabel}</button>
+    <div className="dialog-overlay" onClick={onCancel}>
+      <div
+        className="dialog-box"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="dialog-title">{title}</h2>
+        <p className="dialog-message">{message}</p>
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button className="btn btn-primary" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
