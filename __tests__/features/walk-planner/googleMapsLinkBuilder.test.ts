@@ -31,18 +31,7 @@ describe("buildGoogleMapsUrl", () => {
 
     it("返り値は Google Maps dir URL で始まる", () => {
       const url = buildGoogleMapsUrl(makeRoute());
-      expect(url).toMatch(/^https:\/\/www\.google\.com\/maps\/dir\/\?/);
-    });
-
-    it("origin に start の座標が含まれる", () => {
-      const url = decodeURIComponent(buildGoogleMapsUrl(makeRoute()) ?? "");
-      expect(url).toContain(`origin=${START.lat},${START.lng}`);
-    });
-
-    it("destination に end の座標が含まれる", () => {
-      const end: Coordinate = { lat: 35.700, lng: 139.780 };
-      const url = decodeURIComponent(buildGoogleMapsUrl(makeRoute({ end })) ?? "");
-      expect(url).toContain(`destination=${end.lat},${end.lng}`);
+      expect(url).toMatch(/^https:\/\/www\.google\.com\/maps\/dir\//);
     });
 
     it("travelmode=walking が含まれる", () => {
@@ -51,46 +40,42 @@ describe("buildGoogleMapsUrl", () => {
     });
   });
 
-  describe("周回ルート（start === end）", () => {
-    it("3点以上の geometry があるとき waypoints が設定される", () => {
+  describe("周回ルート（start === end・中間点あり）", () => {
+    it("パスベース形式の URL が返る", () => {
       // Given: 周回ルート（start = end、中間点あり）
-      const coords: Coordinate[] = [
-        { lat: 35.6812, lng: 139.7671 },
-        { lat: 35.6850, lng: 139.7700 },
-        { lat: 35.6880, lng: 139.7650 },
-        { lat: 35.6812, lng: 139.7671 }, // 出発点に戻る
-      ];
+      const mid: Coordinate = { lat: 35.685, lng: 139.77 };
+      const coords: Coordinate[] = [START, mid, START];
       const route = makeRoute({
         geometry: { type: "LineString", coordinates: coords },
-        start: coords[0],
-        end: coords[coords.length - 1],
+        start: START,
+        end: START,
       });
       // When
       const url = buildGoogleMapsUrl(route);
-      // Then: waypoints が含まれる
-      expect(url).toContain("waypoints=");
+      // Then: パスベース形式（クエリパラメータ形式ではない）
+      expect(url).toMatch(/\/maps\/dir\/.+\/.+\/.+/);
+      expect(url).not.toContain("?api=1");
     });
 
-    it("中間点の座標が waypoints に含まれる", () => {
+    it("start・中間点・end の全座標がパスに含まれる", () => {
       // Given
-      const mid1: Coordinate = { lat: 35.6850, lng: 139.7700 };
-      const mid2: Coordinate = { lat: 35.6880, lng: 139.7650 };
-      const coords: Coordinate[] = [START, mid1, mid2, START];
+      const mid: Coordinate = { lat: 35.685, lng: 139.77 };
+      const coords: Coordinate[] = [START, mid, START];
       const route = makeRoute({
         geometry: { type: "LineString", coordinates: coords },
-        start: coords[0],
-        end: coords[coords.length - 1],
+        start: START,
+        end: START,
       });
       // When
-      const url = decodeURIComponent(buildGoogleMapsUrl(route) ?? "");
-      // Then: 中間点が waypoints に含まれる
-      expect(url).toContain(`${mid1.lat},${mid1.lng}`);
-      expect(url).toContain(`${mid2.lat},${mid2.lng}`);
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // Then
+      expect(url).toContain(`${START.lat},${START.lng}`);
+      expect(url).toContain(`${mid.lat},${mid.lng}`);
     });
 
-    it("start・end は waypoints に含まれない（中間点のみ）", () => {
+    it("URL の構造が /dir/start/mid/end?travelmode=walking 形式である", () => {
       // Given
-      const mid: Coordinate = { lat: 35.6850, lng: 139.7700 };
+      const mid: Coordinate = { lat: 35.685, lng: 139.77 };
       const coords: Coordinate[] = [START, mid, START];
       const route = makeRoute({
         geometry: { type: "LineString", coordinates: coords },
@@ -99,36 +84,31 @@ describe("buildGoogleMapsUrl", () => {
       });
       // When
       const url = buildGoogleMapsUrl(route);
-      // Then: waypoints には mid のみ（START は origin/destination）
-      const waypointsMatch = url?.match(/waypoints=([^&]+)/);
-      expect(waypointsMatch).not.toBeNull();
-      const waypointStr = decodeURIComponent(waypointsMatch![1]);
-      expect(waypointStr).toBe(`${mid.lat},${mid.lng}`);
+      // Then
+      const expected = `https://www.google.com/maps/dir/${START.lat},${START.lng}/${mid.lat},${mid.lng}/${START.lat},${START.lng}?travelmode=walking`;
+      expect(url).toBe(expected);
     });
-  });
 
-  describe("waypoints のサンプリング（座標数が多い場合）", () => {
-    it("中間点が 9 点以下の場合は全点を waypoints に設定する", () => {
-      // Given: 中間点5点
-      const inner: Coordinate[] = Array.from({ length: 5 }, (_, i) => ({
-        lat: 35.68 + i * 0.001,
-        lng: 139.77,
-      }));
-      const coords = [START, ...inner, START];
+    it("start === end でも origin=destination エラーが発生しない URL 形式になる", () => {
+      // Given: 周回ルート
+      const mid1: Coordinate = { lat: 35.685, lng: 139.770 };
+      const mid2: Coordinate = { lat: 35.688, lng: 139.765 };
+      const coords: Coordinate[] = [START, mid1, mid2, START];
       const route = makeRoute({
         geometry: { type: "LineString", coordinates: coords },
         start: START,
         end: START,
       });
       // When
-      const url = buildGoogleMapsUrl(route);
-      const waypointsMatch = url?.match(/waypoints=([^&]+)/);
-      const waypointStr = decodeURIComponent(waypointsMatch![1]);
-      // Then: | で区切られた5つのエントリ
-      expect(waypointStr.split("|")).toHaveLength(5);
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // Then: ?origin= ではなくパス形式
+      expect(url).not.toContain("origin=");
+      expect(url).not.toContain("destination=");
     });
+  });
 
-    it("中間点が 9 点を超える場合は最大 9 点にサンプリングされる", () => {
+  describe("waypoints のサンプリング（座標数が多い場合）", () => {
+    it("中間点が 9 点を超える場合はパスに含まれる経由点が 9 点以下になる", () => {
       // Given: 中間点20点
       const inner: Coordinate[] = Array.from({ length: 20 }, (_, i) => ({
         lat: 35.68 + i * 0.001,
@@ -141,26 +121,65 @@ describe("buildGoogleMapsUrl", () => {
         end: START,
       });
       // When
-      const url = buildGoogleMapsUrl(route);
-      const waypointsMatch = url?.match(/waypoints=([^&]+)/);
-      const waypointStr = decodeURIComponent(waypointsMatch![1]);
-      // Then: 9点以下にサンプリング
-      expect(waypointStr.split("|").length).toBeLessThanOrEqual(9);
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // パス部分（travelmode パラメータの前）を取得してスラッシュ区切りでカウント
+      const pathPart = url.replace("https://www.google.com/maps/dir/", "").split("?")[0];
+      const segments = pathPart.split("/");
+      // start + 最大9中間点 + end = 最大11セグメント
+      expect(segments.length).toBeLessThanOrEqual(11);
     });
-  });
 
-  describe("2点のみの geometry（中間点なし）", () => {
-    it("geometry が2点以下のとき waypoints は設定されない", () => {
-      // Given: start と end の2点のみ
+    it("中間点が 9 点以下の場合は全点がパスに含まれる", () => {
+      // Given: 中間点5点
+      const inner: Coordinate[] = Array.from({ length: 5 }, (_, i) => ({
+        lat: 35.68 + i * 0.001,
+        lng: 139.77,
+      }));
+      const coords = [START, ...inner, START];
       const route = makeRoute({
-        geometry: { type: "LineString", coordinates: [START, START] },
+        geometry: { type: "LineString", coordinates: coords },
         start: START,
         end: START,
       });
       // When
-      const url = buildGoogleMapsUrl(route);
-      // Then: waypoints なし
-      expect(url).not.toContain("waypoints");
+      const url = buildGoogleMapsUrl(route) ?? "";
+      const pathPart = url.replace("https://www.google.com/maps/dir/", "").split("?")[0];
+      const segments = pathPart.split("/");
+      // start + 5中間点 + end = 7セグメント
+      expect(segments).toHaveLength(7);
+    });
+  });
+
+  describe("2点のみの geometry（中間点なし）", () => {
+    it("クエリパラメータ形式の URL が返る", () => {
+      // Given: 中間点なし（start → end の2点のみ）
+      const end: Coordinate = { lat: 35.700, lng: 139.780 };
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: [START, end] },
+        start: START,
+        end,
+      });
+      // When
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // Then: クエリパラメータ形式
+      expect(url).toContain("?api=1");
+      expect(url).toContain("origin=");
+      expect(url).toContain("destination=");
+    });
+
+    it("origin と destination に正しい座標が設定される", () => {
+      // Given
+      const end: Coordinate = { lat: 35.700, lng: 139.780 };
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: [START, end] },
+        start: START,
+        end,
+      });
+      // When
+      const url = decodeURIComponent(buildGoogleMapsUrl(route) ?? "");
+      // Then
+      expect(url).toContain(`origin=${START.lat},${START.lng}`);
+      expect(url).toContain(`destination=${end.lat},${end.lng}`);
     });
   });
 });
