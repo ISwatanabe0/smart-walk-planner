@@ -53,7 +53,7 @@ describe("buildGoogleMapsUrl", () => {
       // When
       const url = buildGoogleMapsUrl(route);
       // Then: パスベース形式（クエリパラメータ形式ではない）
-      expect(url).toMatch(/\/maps\/dir\/.+\/.+\/.+/);
+      expect(url).toMatch(/\/maps\/dir\/.+\/.+/);
       expect(url).not.toContain("?api=1");
     });
 
@@ -73,7 +73,7 @@ describe("buildGoogleMapsUrl", () => {
       expect(url).toContain(`${mid.lat},${mid.lng}`);
     });
 
-    it("URL の構造が /dir/start/mid/end?travelmode=walking 形式である", () => {
+    it("URL の構造が /dir/start/mid?travelmode=walking 形式である（末尾の start を含まない）", () => {
       // Given
       const mid: Coordinate = { lat: 35.685, lng: 139.77 };
       const coords: Coordinate[] = [START, mid, START];
@@ -84,9 +84,44 @@ describe("buildGoogleMapsUrl", () => {
       });
       // When
       const url = buildGoogleMapsUrl(route);
-      // Then
-      const expected = `https://www.google.com/maps/dir/${START.lat},${START.lng}/${mid.lat},${mid.lng}/${START.lat},${START.lng}?travelmode=walking`;
+      // Then: 末尾は mid（destination）であり、start に戻る座標は含まない
+      const expected = `https://www.google.com/maps/dir/${START.lat},${START.lng}/${mid.lat},${mid.lng}?travelmode=walking`;
       expect(url).toBe(expected);
+    });
+
+    it("origin と destination が異なる（Google Maps がルートを計算できる）", () => {
+      // Given: 周回ルート（start = end）
+      const mid1: Coordinate = { lat: 35.685, lng: 139.770 };
+      const mid2: Coordinate = { lat: 35.688, lng: 139.765 };
+      const coords: Coordinate[] = [START, mid1, mid2, START];
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: coords },
+        start: START,
+        end: START,
+      });
+      // When
+      const url = buildGoogleMapsUrl(route) ?? "";
+      const pathPart = url.replace("https://www.google.com/maps/dir/", "").split("?")[0];
+      const segments = pathPart.split("/");
+      // Then: 先頭（origin）と末尾（destination）が異なる
+      expect(segments[0]).not.toBe(segments[segments.length - 1]);
+      expect(segments[segments.length - 1]).not.toBe(`${START.lat},${START.lng}`);
+    });
+
+    it("周回ルートの URL の末尾（destination）がスタート地点の座標でない", () => {
+      // Given
+      const mid: Coordinate = { lat: 35.685, lng: 139.77 };
+      const coords: Coordinate[] = [START, mid, START];
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: coords },
+        start: START,
+        end: START,
+      });
+      // When
+      const url = buildGoogleMapsUrl(route) ?? "";
+      const pathPart = url.split("?")[0];
+      // Then: URL のパス末尾がスタート地点の座標でない
+      expect(pathPart.endsWith(`${START.lat},${START.lng}`)).toBe(false);
     });
 
     it("start === end でも origin=destination エラーが発生しない URL 形式になる", () => {
@@ -108,7 +143,7 @@ describe("buildGoogleMapsUrl", () => {
   });
 
   describe("waypoints のサンプリング（座標数が多い場合）", () => {
-    it("中間点が 9 点を超える場合はパスに含まれる経由点が 9 点以下になる", () => {
+    it("中間点が 9 点を超える場合はパスに含まれる経由点が 10 点以下になる", () => {
       // Given: 中間点20点
       const inner: Coordinate[] = Array.from({ length: 20 }, (_, i) => ({
         lat: 35.68 + i * 0.001,
@@ -125,8 +160,8 @@ describe("buildGoogleMapsUrl", () => {
       // パス部分（travelmode パラメータの前）を取得してスラッシュ区切りでカウント
       const pathPart = url.replace("https://www.google.com/maps/dir/", "").split("?")[0];
       const segments = pathPart.split("/");
-      // start + 最大9中間点 + end = 最大11セグメント
-      expect(segments.length).toBeLessThanOrEqual(11);
+      // coordsForUrl = [start + 20中間点]（末尾のstartを除く21点）を最大10点にサンプリング
+      expect(segments.length).toBeLessThanOrEqual(10);
     });
 
     it("中間点が 9 点以下の場合は全点がパスに含まれる", () => {
@@ -145,8 +180,8 @@ describe("buildGoogleMapsUrl", () => {
       const url = buildGoogleMapsUrl(route) ?? "";
       const pathPart = url.replace("https://www.google.com/maps/dir/", "").split("?")[0];
       const segments = pathPart.split("/");
-      // start + 5中間点 + end = 7セグメント
-      expect(segments).toHaveLength(7);
+      // coordsForUrl = [start + 5中間点]（末尾のstartを除く6点）→ 6セグメント
+      expect(segments).toHaveLength(6);
     });
   });
 

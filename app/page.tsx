@@ -8,6 +8,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
+import { buildGoogleMapsUrl } from "@/features/walk-planner/services/googleMapsLinkBuilder";
 import type { WalkRoute } from "@/types/route";
 import type { Coordinate } from "@/types/map";
 
@@ -56,25 +57,11 @@ export default function HomePage() {
     if (confirmDialogRoute === null) {
       return;
     }
-    const { start, end, waypoints } = confirmDialogRoute;
-    const origin = `${start.lat},${start.lng}`;
-    const destination = `${end.lat},${end.lng}`;
-    const params = new URLSearchParams({
-      api: "1",
-      origin,
-      destination,
-      travelmode: "walking",
-    });
-    if (waypoints.length > 0) {
-      const wpStr = waypoints
-        .map((wp) => `${wp.position.lat},${wp.position.lng}`)
-        .join("|");
-      params.set("waypoints", wpStr);
+    const url = buildGoogleMapsUrl(confirmDialogRoute);
+    if (url === null) {
+      return;
     }
-    window.open(
-      `https://www.google.com/maps/dir/?${params.toString()}`,
-      "_blank"
-    );
+    window.open(url, "_blank");
     setConfirmDialogRoute(null);
   };
 
