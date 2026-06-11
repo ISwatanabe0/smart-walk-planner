@@ -9,6 +9,7 @@ import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
 import { useGpsTracking } from "@/features/walk-tracking/hooks/useGpsTracking";
+import { useDeviceHeading } from "@/features/walk-tracking/hooks/useDeviceHeading";
 import { useWalkGuidance } from "@/features/walk-tracking/hooks/useWalkGuidance";
 import { TrackingPanel } from "@/features/walk-tracking/components/TrackingPanel";
 import { GuidanceBanner } from "@/features/walk-tracking/components/GuidanceBanner";
@@ -23,10 +24,17 @@ export default function HomePage() {
   const { condition, isLoading, errors, updateCondition, submitSearch } =
     useRouteSearch();
   const tracking = useGpsTracking();
+  const deviceHeading = useDeviceHeading();
 
   const [view, setView] = useState<PageView>("search");
   const [routes, setRoutes] = useState<WalkRoute[]>([]);
   const guidance = useWalkGuidance(tracking, routes[0] ?? null);
+
+  // 散歩スタート時に、現在地取得と方位センサー許可（iOSはユーザー操作必須）を同時に行う
+  const handleStartTracking = () => {
+    tracking.startTracking();
+    void deviceHeading.requestPermission();
+  };
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmDialogRoute, setConfirmDialogRoute] =
     useState<WalkRoute | null>(null);
@@ -108,6 +116,8 @@ export default function HomePage() {
             }
             userPosition={tracking.isTracking ? tracking.currentPosition : null}
             userTrail={tracking.isTracking ? tracking.trail : []}
+            userHeadingDeg={tracking.isTracking ? deviceHeading.heading : null}
+            navMode={tracking.isTracking}
             onMapClick={canSelectPoint ? handleMapClick : undefined}
             onMoveStart={
               canSelectPoint
@@ -145,7 +155,11 @@ export default function HomePage() {
 
             {!isLoading && view === "result" && (
               <>
-                <TrackingPanel tracking={tracking} />
+                <TrackingPanel
+                  tracking={tracking}
+                  onStart={handleStartTracking}
+                  compassPermission={deviceHeading.permission}
+                />
                 <RouteResultPanel
                   routes={routes}
                   onOpenGoogleMaps={handleOpenGoogleMaps}

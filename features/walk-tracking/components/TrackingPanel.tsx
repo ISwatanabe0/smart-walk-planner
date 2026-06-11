@@ -5,15 +5,24 @@ import { Button } from "@/components/ui/Button";
 import { formatDistance, formatDuration, formatPace } from "@/lib/format/walk";
 import { estimateSteps, estimateCaloriesKcal } from "@/lib/fitness/estimate";
 import type { GpsTracking } from "../hooks/useGpsTracking";
+import type { HeadingPermission } from "../hooks/useDeviceHeading";
 
 type TrackingPanelProps = {
   tracking: GpsTracking;
+  /** スタート時の処理（方位センサー許可など）。未指定なら通常のstartTracking */
+  onStart?: () => void;
+  /** 方位センサーの許可状態（地図回転の可否メッセージ用） */
+  compassPermission?: HeadingPermission;
 };
 
 /** これより精度（メートル）が悪いと現在地が不正確な旨を注意表示する */
 const POOR_ACCURACY_THRESHOLD_METERS = 30;
 
-export function TrackingPanel({ tracking }: TrackingPanelProps) {
+export function TrackingPanel({
+  tracking,
+  onStart,
+  compassPermission,
+}: TrackingPanelProps) {
   const {
     isTracking,
     walkedMeters,
@@ -24,6 +33,10 @@ export function TrackingPanel({ tracking }: TrackingPanelProps) {
     startTracking,
     stopTracking,
   } = tracking;
+
+  const handleStart = onStart ?? startTracking;
+  const compassUnavailable =
+    compassPermission === "denied" || compassPermission === "unsupported";
 
   const pace = formatPace(walkedMeters, elapsedSeconds);
   const steps = estimateSteps(walkedMeters);
@@ -36,9 +49,10 @@ export function TrackingPanel({ tracking }: TrackingPanelProps) {
       {!isTracking ? (
         <div className="tracking-idle">
           <p className="form-hint">
-            現在地を追跡して、歩いた軌跡と距離をこの画面に記録します。
+            現在地を追跡して、歩いた軌跡と距離を記録します。地図は向いている方角に
+            合わせて回転します（方位センサーの利用を許可してください）。
           </p>
-          <Button onClick={startTracking} fullWidth>
+          <Button onClick={handleStart} fullWidth>
             ▶ 散歩をスタート
           </Button>
         </div>
@@ -83,6 +97,12 @@ export function TrackingPanel({ tracking }: TrackingPanelProps) {
           {!isScreenLockHeld && (
             <p className="form-hint">
               ※ 画面が消えると記録が止まります。画面はつけたままにしてください。
+            </p>
+          )}
+
+          {compassUnavailable && (
+            <p className="form-hint">
+              ※ 方位センサーが使えないため、地図は回転しません（北が上のまま表示します）。
             </p>
           )}
 
