@@ -48,8 +48,8 @@ describe("ルート検索フロー（インテグレーション）", () => {
   };
 
   describe("初期表示", () => {
-    it("distanceMeters の初期値が 3000 で表示される", () => {
-      // Given: フォームがデフォルト値で初期化される
+    it("距離の初期値が km 表記（3km）で表示される", () => {
+      // Given: フォームがデフォルト値（3000m）で初期化される
       // When
       render(
         <RouteSearchForm
@@ -60,9 +60,9 @@ describe("ルート検索フロー（インテグレーション）", () => {
           errors={[]}
         />
       );
-      // Then: 距離入力欄に3000が初期表示される
-      const distanceInput = screen.getByLabelText(/距離|distance/i) as HTMLInputElement;
-      expect(distanceInput.value).toBe(String(DEFAULT_DISTANCE_METERS));
+      // Then: 距離入力欄には km 単位で 3 が初期表示される
+      const distanceInput = screen.getByLabelText(/距離/i) as HTMLInputElement;
+      expect(distanceInput.value).toBe(String(DEFAULT_DISTANCE_METERS / 1000));
     });
 
     it("startLocationText フィールドが存在しない（テキスト住所入力欄がない）", () => {

@@ -102,6 +102,21 @@ describe("fetchOsrmRoute", () => {
       expect(calledUrl).toContain("geometries=geojson");
       expect(calledUrl).toContain("overview=full");
     });
+
+    it("歩行者プロファイル（routed-foot）のエンドポイントを使う", async () => {
+      // Given: 車専用ではなく歩行者専用の経路サーバーを使う
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockOsrmResponse,
+      } as Response);
+      global.fetch = fetchMock;
+      // When
+      await fetchOsrmRoute([TOKYO, NEARBY]);
+      // Then
+      const calledUrl = fetchMock.mock.calls[0][0] as string;
+      expect(calledUrl).toContain("routed-foot");
+      expect(calledUrl).toContain("/foot/");
+    });
   });
 
   describe("異常系", () => {

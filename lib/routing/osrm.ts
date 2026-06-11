@@ -1,6 +1,15 @@
 import type { Coordinate } from "@/types/map";
 
-const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/foot";
+/**
+ * FOSSGIS が運営する歩行者プロファイルの公開OSRMサーバー。
+ * router.project-osrm.org は車専用プロファイルしか持たず、
+ * 歩道・遊歩道・公園内の小道などを考慮しないため使用しない。
+ */
+const OSRM_BASE_URL =
+  "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
+
+/** Vercel無料プランの関数実行10秒制限内に収めるためのタイムアウト */
+const FETCH_TIMEOUT_MS = 8000;
 
 type OsrmRouteResponse = {
   code: string;
@@ -24,7 +33,7 @@ export type OsrmResult = {
 };
 
 /**
- * OSRM Public APIを使って徒歩ルートを取得する
+ * OSRM Public API（歩行者プロファイル）を使って徒歩ルートを取得する
  * @param waypoints 経由点の配列（最初と最後が出発・到着地点）
  */
 export async function fetchOsrmRoute(
@@ -37,11 +46,29 @@ export async function fetchOsrmRoute(
   const coordStr = waypoints.map((c) => `${c.lng},${c.lat}`).join(";");
   const url = `${OSRM_BASE_URL}/${coordStr}?geometries=geojson&overview=full`;
 
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
-    // Next.js Route Handlerではキャッシュしない
-    cache: "no-store",
-  });
+  // AbortSignal.timeout 非対応環境（古いランタイム等）では signal なしで実行する
+  const timeoutSignal =
+    typeof AbortSignal !== "undefined" &&
+    typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      : undefined;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      // Next.js Route Handlerではキャッシュしない
+      cache: "no-store",
+      signal: timeoutSignal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new Error(
+        "経路サーバーの応答がありません。時間をおいて再試行してください。"
+      );
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error(`OSRM APIエラー: HTTP ${response.status}`);

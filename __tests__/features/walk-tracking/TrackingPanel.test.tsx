@@ -11,6 +11,7 @@ function makeTracking(overrides: Partial<GpsTracking> = {}): GpsTracking {
     isTracking: false,
     currentPosition: null,
     accuracyMeters: null,
+    headingDeg: null,
     trail: [],
     walkedMeters: 0,
     elapsedSeconds: 0,
@@ -70,6 +71,16 @@ describe("TrackingPanel", () => {
       // Then
       expect(screen.getByText("1.23km")).toBeInTheDocument();
       expect(screen.getByText("01:05")).toBeInTheDocument();
+    });
+
+    it("歩数と消費カロリーが表示される", () => {
+      // Given: 1234m 歩行
+      render(<TrackingPanel tracking={activeTracking} />);
+      // Then: 歩数ラベルと消費kcalラベルが存在する
+      expect(screen.getByText("歩数")).toBeInTheDocument();
+      expect(screen.getByText("消費kcal")).toBeInTheDocument();
+      // 1234m ÷ 0.7 ≒ 1763歩
+      expect(screen.getByText("1,763")).toBeInTheDocument();
     });
 
     it("終了ボタンを押すと stopTracking が呼ばれる", async () => {
