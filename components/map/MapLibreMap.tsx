@@ -27,9 +27,9 @@ type MapLibreMapProps = {
   routeGeometry: RouteGeometry | null;
   userPosition: Coordinate | null;
   userTrail: Coordinate[];
-  /** 端末の向き（北=0°）。ナビ時に地図をこの方位へ回転させる */
+  /** 端末の向き（北=0°）。現在地マーカー（アバター）の向きにのみ使う */
   bearingDeg: number | null;
-  /** ナビ（追従・ヘディングアップ・3D）モードか */
+  /** ナビ（現在地追従・3D視点）モードか。地図の回転は行わない */
   navMode: boolean;
   onMapClick?: (coordinate: Coordinate) => void;
   onMoveStart?: (coordinate: Coordinate) => void;
@@ -206,6 +206,20 @@ export function MapLibreMap(props: MapLibreMapProps) {
 
   useEffect(() => {
     syncRouteData();
+    // ルート生成時は全体が収まるようにフィットする
+    const map = mapRef.current;
+    const coords = props.routeGeometry?.coordinates ?? [];
+    if (map === null || coords.length < 2) {
+      return;
+    }
+    const bounds = coords.reduce(
+      (b, c) => b.extend([c.lng, c.lat]),
+      new maplibregl.LngLatBounds(
+        [coords[0].lng, coords[0].lat],
+        [coords[0].lng, coords[0].lat]
+      )
+    );
+    map.fitBounds(bounds, { padding: 60, duration: 600 });
   }, [props.routeGeometry]);
 
   useEffect(() => {
@@ -266,7 +280,8 @@ export function MapLibreMap(props: MapLibreMapProps) {
     });
   }, [props.waypoints]);
 
-  // ---- 現在地マーカー ----
+  // ---- 現在地マーカー（アバター）----
+  // 地図は回転させず、マーカー自身をコンパス方位へ回転させる
   useEffect(() => {
     const map = mapRef.current;
     if (map === null) {
@@ -281,6 +296,9 @@ export function MapLibreMap(props: MapLibreMapProps) {
       userMarkerRef.current = new maplibregl.Marker({
         element: userElement(),
         anchor: "center",
+        // 回転は地図基準（北=0°）。地図を二本指で回しても実方位を指し続ける
+        rotationAlignment: "map",
+        pitchAlignment: "map",
       })
         .setLngLat([props.userPosition.lng, props.userPosition.lat])
         .addTo(map);
@@ -290,42 +308,57 @@ export function MapLibreMap(props: MapLibreMapProps) {
         props.userPosition.lat,
       ]);
     }
-    // ヘディングアップ時は進行方向が常に画面上方向になるため扇は上向き
-    const el = userMarkerRef.current.getElement();
-    const headingUp = props.navMode && props.bearingDeg !== null;
-    el.classList.toggle("has-heading", headingUp);
-  }, [props.userPosition, props.navMode, props.bearingDeg]);
+    const marker = userMarkerRef.current;
+    marker.setRotation(props.bearingDeg ?? 0);
+    marker
+      .getElement()
+      .classList.toggle("has-heading", props.bearingDeg !== null);
+  }, [props.userPosition, props.bearingDeg]);
 
-  // ---- カメラ（追従・ヘディングアップ・3D）----
+  // ---- カメラ（現在地追従・3D視点）----
+  // 地図の向きはユーザー操作（二本指回転）に完全に任せ、bearing には一切触れない
+  const wasNavRef = useRef(false);
   useEffect(() => {
     const map = mapRef.current;
     if (map === null) {
       return;
     }
     if (props.navMode && props.userPosition !== null) {
-      map.easeTo({
-        center: [props.userPosition.lng, props.userPosition.lat],
-        zoom: NAV_ZOOM,
-        pitch: NAV_PITCH,
-        bearing: props.bearingDeg ?? map.getBearing(),
-        duration: 300,
-      });
-    } else {
+      if (!wasNavRef.current) {
+        // ナビ開始時のみズームと3D傾きを設定
+        map.easeTo({
+          center: [props.userPosition.lng, props.userPosition.lat],
+          zoom: NAV_ZOOM,
+          pitch: NAV_PITCH,
+          duration: 600,
+        });
+      } else {
+        // 以降は現在地への追従のみ（ズーム・傾き・向きはユーザー調整を維持）
+        map.easeTo({
+          center: [props.userPosition.lng, props.userPosition.lat],
+          duration: 300,
+        });
+      }
+      wasNavRef.current = true;
+      return;
+    }
+
+    if (wasNavRef.current) {
+      // ナビ終了時は傾きだけ戻す（向きは維持）
+      map.easeTo({ pitch: 0, duration: 500 });
+      wasNavRef.current = false;
+      return;
+    }
+
+    // 非ナビ時: 選択地点が画面外のときだけ再センタリング（視点ジャンプ防止）
+    if (!map.getBounds().contains([props.center.lng, props.center.lat])) {
       map.easeTo({
         center: [props.center.lng, props.center.lat],
         zoom: props.zoom,
-        pitch: 0,
-        bearing: 0,
         duration: 500,
       });
     }
-  }, [
-    props.navMode,
-    props.userPosition,
-    props.bearingDeg,
-    props.center,
-    props.zoom,
-  ]);
+  }, [props.navMode, props.userPosition, props.center, props.zoom]);
 
   return <div ref={containerRef} style={{ height: "100%", width: "100%" }} />;
 }

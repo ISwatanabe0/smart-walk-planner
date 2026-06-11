@@ -116,7 +116,11 @@ export default function HomePage() {
             }
             userPosition={tracking.isTracking ? tracking.currentPosition : null}
             userTrail={tracking.isTracking ? tracking.trail : []}
-            userHeadingDeg={tracking.isTracking ? deviceHeading.heading : null}
+            userHeadingDeg={
+              tracking.isTracking
+                ? deviceHeading.heading ?? tracking.headingDeg
+                : null
+            }
             navMode={tracking.isTracking}
             onMapClick={canSelectPoint ? handleMapClick : undefined}
             onMoveStart={
