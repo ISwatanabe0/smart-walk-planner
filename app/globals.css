@@ -183,6 +183,69 @@ body {
   flex: 1;
 }
 
+/* ---- Start location ---- */
+.start-location {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.location-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #f0faf5;
+  border: 1px solid #bfe5d4;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.8125rem;
+  color: #156647;
+}
+.location-status-empty {
+  background: #f8f9fa;
+  border: 1px dashed #ced4da;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.8125rem;
+  color: #6c757d;
+}
+.location-clear {
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.location-clear:hover {
+  color: #dc3545;
+}
+
+/* ---- Map container ---- */
+.map-container {
+  position: relative;
+}
+.map-selectable .leaflet-container {
+  cursor: crosshair;
+}
+.map-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(33, 37, 41, 0.85);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
 /* ---- Loading spinner ---- */
 .spinner-container {
   display: flex;

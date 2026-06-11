@@ -28,6 +28,8 @@ type MapViewProps = {
   endMarker: Coordinate | null;
   waypoints: Waypoint[];
   routeGeometry: RouteGeometry | null;
+  /** 指定すると地図タップ・ピンのドラッグで出発地点を選択できる */
+  onSelectStart?: (coordinate: Coordinate) => void;
 };
 
 export function MapView({
@@ -36,12 +38,17 @@ export function MapView({
   endMarker,
   waypoints,
   routeGeometry,
+  onSelectStart,
 }: MapViewProps) {
   const mapCenter = center ?? startMarker ?? DEFAULT_CENTER;
   const zoom = center !== null || startMarker !== null ? LOCATION_ZOOM : DEFAULT_ZOOM;
+  const isSelectable = onSelectStart !== undefined;
 
   return (
-    <div style={{ height: "100%", width: "100%" }}>
+    <div
+      className={isSelectable ? "map-container map-selectable" : "map-container"}
+      style={{ height: "100%", width: "100%" }}
+    >
       <LeafletMap
         center={mapCenter}
         zoom={zoom}
@@ -49,7 +56,11 @@ export function MapView({
         endMarker={endMarker}
         waypoints={waypoints}
         routeGeometry={routeGeometry}
+        onSelectStart={onSelectStart}
       />
+      {isSelectable && startMarker === null && (
+        <div className="map-hint">地図をタップして出発地点を選択</div>
+      )}
     </div>
   );
 }

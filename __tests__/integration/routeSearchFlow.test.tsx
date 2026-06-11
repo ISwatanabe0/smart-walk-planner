@@ -80,8 +80,8 @@ describe("ルート検索フロー（インテグレーション）", () => {
       expect(screen.queryByPlaceholderText(/住所|address/i)).not.toBeInTheDocument();
     });
 
-    it("緯度・経度の number 入力欄が表示される", () => {
-      // Given
+    it("緯度・経度の number 入力欄は表示されない（地図タップで選択する仕様）", () => {
+      // Given: 座標はユーザーに見せず、地図タップ／現在地取得で選択する
       // When
       render(
         <RouteSearchForm
@@ -92,9 +92,10 @@ describe("ルート検索フロー（インテグレーション）", () => {
           errors={[]}
         />
       );
-      // Then: StartLocationInput が統合されて座標入力欄が表示される
-      expect(screen.getByLabelText(/緯度|lat/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/経度|lng/i)).toBeInTheDocument();
+      // Then: 座標入力欄は存在せず、地図タップの案内が表示される
+      expect(screen.queryByLabelText(/緯度|lat/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/経度|lng/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/地図をタップ/)).toBeInTheDocument();
     });
   });
 
