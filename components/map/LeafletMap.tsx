@@ -38,6 +38,14 @@ const waypointIcon = L.divIcon({
   className: "",
 });
 
+// トラッキング中の現在地（青い点が脈打つ「現在地」表示）
+const userIcon = L.divIcon({
+  html: '<div class="user-location-marker"><div class="user-location-pulse"></div><div class="user-location-dot"></div></div>',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  className: "",
+});
+
 function MapUpdater({ center, zoom }: { center: Coordinate; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -96,6 +104,10 @@ type LeafletMapProps = {
   endMarker: Coordinate | null;
   waypoints: Waypoint[];
   routeGeometry: RouteGeometry | null;
+  /** トラッキング中の現在地（青い点で表示） */
+  userPosition?: Coordinate | null;
+  /** トラッキングで歩いた軌跡 */
+  userTrail?: Coordinate[];
   /** 指定すると地図タップで地点を選択できる */
   onMapClick?: (coordinate: Coordinate) => void;
   /** 指定すると出発地点のピンをドラッグで動かせる */
@@ -111,6 +123,8 @@ export function LeafletMap({
   endMarker,
   waypoints,
   routeGeometry,
+  userPosition = null,
+  userTrail = [],
   onMapClick,
   onMoveStart,
   onMoveEnd,
@@ -119,6 +133,9 @@ export function LeafletMap({
     routeGeometry?.coordinates.map(
       (c): [number, number] => [c.lat, c.lng]
     ) ?? [];
+  const trailPositions = userTrail.map(
+    (c): [number, number] => [c.lat, c.lng]
+  );
 
   return (
     <MapContainer
@@ -175,6 +192,23 @@ export function LeafletMap({
           positions={polylinePositions}
           pathOptions={{ color: "#1a7f5a", weight: 5, opacity: 0.85 }}
         />
+      )}
+
+      {trailPositions.length > 0 && (
+        <Polyline
+          positions={trailPositions}
+          pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9 }}
+        />
+      )}
+
+      {userPosition !== null && (
+        <Marker
+          position={[userPosition.lat, userPosition.lng]}
+          icon={userIcon}
+          zIndexOffset={1000}
+        >
+          <Popup>現在地</Popup>
+        </Marker>
       )}
     </MapContainer>
   );

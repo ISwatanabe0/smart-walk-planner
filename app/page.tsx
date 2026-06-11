@@ -8,6 +8,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
+import { useGpsTracking } from "@/features/walk-tracking/hooks/useGpsTracking";
+import { TrackingPanel } from "@/features/walk-tracking/components/TrackingPanel";
 import { buildGoogleMapsUrl } from "@/features/walk-planner/services/googleMapsLinkBuilder";
 import type { WalkRoute } from "@/types/route";
 import type { Coordinate } from "@/types/map";
@@ -17,6 +19,7 @@ type PageView = "search" | "result" | "error";
 export default function HomePage() {
   const { condition, isLoading, errors, updateCondition, submitSearch } =
     useRouteSearch();
+  const tracking = useGpsTracking();
 
   const [view, setView] = useState<PageView>("search");
   const [routes, setRoutes] = useState<WalkRoute[]>([]);
@@ -26,8 +29,8 @@ export default function HomePage() {
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
-  // 地点の選択（地図タップ／ピンのドラッグ）は検索画面でのみ有効にする
-  const canSelectPoint = view === "search" && !isLoading;
+  // 地点の選択（地図タップ／ピンのドラッグ）は検索画面かつ非トラッキング時のみ有効
+  const canSelectPoint = view === "search" && !isLoading && !tracking.isTracking;
   const isOneway = condition.routeType === "oneway";
 
   // タップ位置の振り分け: 出発地点が未設定なら出発地点、
@@ -99,6 +102,8 @@ export default function HomePage() {
             routeGeometry={
               view === "result" ? selectedRoute?.geometry ?? null : null
             }
+            userPosition={tracking.isTracking ? tracking.currentPosition : null}
+            userTrail={tracking.isTracking ? tracking.trail : []}
             onMapClick={canSelectPoint ? handleMapClick : undefined}
             onMoveStart={
               canSelectPoint
@@ -134,12 +139,15 @@ export default function HomePage() {
             )}
 
             {!isLoading && view === "result" && (
-              <RouteResultPanel
-                routes={routes}
-                onOpenGoogleMaps={handleOpenGoogleMaps}
-                onChangeCondition={() => setView("search")}
-                onRetry={handleRetry}
-              />
+              <>
+                <TrackingPanel tracking={tracking} />
+                <RouteResultPanel
+                  routes={routes}
+                  onOpenGoogleMaps={handleOpenGoogleMaps}
+                  onChangeCondition={() => setView("search")}
+                  onRetry={handleRetry}
+                />
+              </>
             )}
 
             {!isLoading && view === "error" && (

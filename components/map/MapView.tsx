@@ -28,6 +28,10 @@ type MapViewProps = {
   endMarker: Coordinate | null;
   waypoints: Waypoint[];
   routeGeometry: RouteGeometry | null;
+  /** トラッキング中の現在地（青い点で表示） */
+  userPosition?: Coordinate | null;
+  /** トラッキングで歩いた軌跡 */
+  userTrail?: Coordinate[];
   /** 指定すると地図タップで地点を選択できる */
   onMapClick?: (coordinate: Coordinate) => void;
   /** 指定すると出発地点のピンをドラッグで動かせる */
@@ -44,13 +48,19 @@ export function MapView({
   endMarker,
   waypoints,
   routeGeometry,
+  userPosition = null,
+  userTrail = [],
   onMapClick,
   onMoveStart,
   onMoveEnd,
   hint = null,
 }: MapViewProps) {
-  const mapCenter = center ?? startMarker ?? DEFAULT_CENTER;
-  const zoom = center !== null || startMarker !== null ? LOCATION_ZOOM : DEFAULT_ZOOM;
+  // トラッキング中は現在地を優先して地図中心に追従させる
+  const mapCenter = userPosition ?? center ?? startMarker ?? DEFAULT_CENTER;
+  const zoom =
+    userPosition !== null || center !== null || startMarker !== null
+      ? LOCATION_ZOOM
+      : DEFAULT_ZOOM;
   const isSelectable = onMapClick !== undefined;
 
   return (
@@ -65,6 +75,8 @@ export function MapView({
         endMarker={endMarker}
         waypoints={waypoints}
         routeGeometry={routeGeometry}
+        userPosition={userPosition}
+        userTrail={userTrail}
         onMapClick={onMapClick}
         onMoveStart={onMoveStart}
         onMoveEnd={onMoveEnd}
