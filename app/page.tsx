@@ -9,7 +9,10 @@ import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
 import { useGpsTracking } from "@/features/walk-tracking/hooks/useGpsTracking";
+import { useWalkGuidance } from "@/features/walk-tracking/hooks/useWalkGuidance";
 import { TrackingPanel } from "@/features/walk-tracking/components/TrackingPanel";
+import { GuidanceBanner } from "@/features/walk-tracking/components/GuidanceBanner";
+import { GoalCelebration } from "@/features/walk-tracking/components/GoalCelebration";
 import { buildGoogleMapsUrl } from "@/features/walk-planner/services/googleMapsLinkBuilder";
 import type { WalkRoute } from "@/types/route";
 import type { Coordinate } from "@/types/map";
@@ -23,6 +26,7 @@ export default function HomePage() {
 
   const [view, setView] = useState<PageView>("search");
   const [routes, setRoutes] = useState<WalkRoute[]>([]);
+  const guidance = useWalkGuidance(tracking, routes[0] ?? null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmDialogRoute, setConfirmDialogRoute] =
     useState<WalkRoute | null>(null);
@@ -117,6 +121,7 @@ export default function HomePage() {
             }
             hint={mapHint}
           />
+          {tracking.isTracking && <GuidanceBanner guidance={guidance} />}
         </div>
 
         <aside className="sidebar">
@@ -164,6 +169,13 @@ export default function HomePage() {
           </div>
         </aside>
       </main>
+
+      {tracking.isTracking && (
+        <GoalCelebration
+          phase={guidance.goalPhase}
+          distanceToGoalMeters={guidance.distanceToGoalMeters}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={confirmDialogRoute !== null}

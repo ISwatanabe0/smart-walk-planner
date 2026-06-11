@@ -3,6 +3,7 @@
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Button } from "@/components/ui/Button";
 import { formatDistance, formatDuration, formatPace } from "@/lib/format/walk";
+import { estimateSteps, estimateCaloriesKcal } from "@/lib/fitness/estimate";
 import type { GpsTracking } from "../hooks/useGpsTracking";
 
 type TrackingPanelProps = {
@@ -25,6 +26,8 @@ export function TrackingPanel({ tracking }: TrackingPanelProps) {
   } = tracking;
 
   const pace = formatPace(walkedMeters, elapsedSeconds);
+  const steps = estimateSteps(walkedMeters);
+  const calories = estimateCaloriesKcal(walkedMeters, elapsedSeconds);
   const hasPoorAccuracy =
     accuracyMeters !== null && accuracyMeters > POOR_ACCURACY_THRESHOLD_METERS;
 
@@ -57,6 +60,16 @@ export function TrackingPanel({ tracking }: TrackingPanelProps) {
             <div className="tracking-stat">
               <div className="tracking-stat-value">{pace ?? "—"}</div>
               <div className="tracking-stat-label">平均ペース</div>
+            </div>
+            <div className="tracking-stat">
+              <div className="tracking-stat-value">
+                {steps.toLocaleString()}
+              </div>
+              <div className="tracking-stat-label">歩数</div>
+            </div>
+            <div className="tracking-stat">
+              <div className="tracking-stat-value">{calories}</div>
+              <div className="tracking-stat-label">消費kcal</div>
             </div>
           </div>
 

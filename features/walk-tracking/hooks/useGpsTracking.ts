@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { haversineDistance } from "@/lib/geo/destination";
+import { haversineDistance, initialBearing } from "@/lib/geo/destination";
 import type { Coordinate } from "@/types/map";
 
 export type GpsTracking = {
@@ -11,6 +11,8 @@ export type GpsTracking = {
   currentPosition: Coordinate | null;
   /** 現在地の測位精度（メートル、未取得なら null） */
   accuracyMeters: number | null;
+  /** 進行方位（北=0°、時計回り。移動するまでは null） */
+  headingDeg: number | null;
   /** 歩いた軌跡の座標列 */
   trail: Coordinate[];
   /** 累計歩行距離（メートル） */
@@ -64,6 +66,7 @@ export function useGpsTracking(): GpsTracking {
   const [isTracking, setIsTracking] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinate | null>(null);
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
+  const [headingDeg, setHeadingDeg] = useState<number | null>(null);
   const [trail, setTrail] = useState<Coordinate[]>([]);
   const [walkedMeters, setWalkedMeters] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -135,6 +138,7 @@ export function useGpsTracking(): GpsTracking {
     setElapsedSeconds(0);
     setCurrentPosition(null);
     setAccuracyMeters(null);
+    setHeadingDeg(null);
     lastPointRef.current = null;
     startTimeRef.current = Date.now();
     setIsTracking(true);
@@ -168,6 +172,8 @@ export function useGpsTracking(): GpsTracking {
         lastPointRef.current = coord;
         setTrail((prev) => [...prev, coord]);
         setWalkedMeters((prev) => prev + moved);
+        // 直前の採用点からの移動方向を進行方位とする
+        setHeadingDeg(initialBearing(last, coord));
       },
       (err) => {
         setError(geolocationErrorMessage(err));
@@ -219,6 +225,7 @@ export function useGpsTracking(): GpsTracking {
     isTracking,
     currentPosition,
     accuracyMeters,
+    headingDeg,
     trail,
     walkedMeters,
     elapsedSeconds,

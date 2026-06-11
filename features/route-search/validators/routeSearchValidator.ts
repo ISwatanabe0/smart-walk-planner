@@ -27,7 +27,7 @@ export function validateRouteSearchCondition(
   if (condition.distanceMeters < 1) {
     errors.push({
       field: "distanceMeters",
-      message: "距離は1m以上を指定してください",
+      message: "目標距離または目標時間のどちらかを入力してください",
     });
   }
 
