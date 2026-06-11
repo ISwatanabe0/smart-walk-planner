@@ -8,6 +8,7 @@ import {
   Polyline,
   Popup,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -16,9 +17,12 @@ import type { Waypoint } from "@/types/route";
 
 // Next.js/Webpack では Leaflet のデフォルトアイコン画像パスが壊れるため divIcon を使用
 const startIcon = L.divIcon({
-  html: '<div style="background:#1a7f5a;width:14px;height:14px;border-radius:50%;border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
+  html: `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">
+    <path d="M15 0C6.72 0 0 6.72 0 15c0 11.25 15 25 15 25s15-13.75 15-25C30 6.72 23.28 0 15 0z" fill="#1a7f5a"/>
+    <circle cx="15" cy="15" r="6" fill="white"/>
+  </svg>`,
+  iconSize: [30, 40],
+  iconAnchor: [15, 40],
   className: "",
 });
 
@@ -32,8 +36,40 @@ const waypointIcon = L.divIcon({
 function MapUpdater({ center, zoom }: { center: Coordinate; zoom: number }) {
   const map = useMap();
   useEffect(() => {
+    // 地点が画面内に見えている間は視点を動かさない
+    // （地図タップやピンのドラッグのたびに視点が飛ぶのを防ぐ）
+    if (map.getBounds().contains([center.lat, center.lng])) {
+      return;
+    }
     map.flyTo([center.lat, center.lng], zoom, { duration: 0.8 });
   }, [map, center.lat, center.lng, zoom]);
+  return null;
+}
+
+function RouteFitter({ geometry }: { geometry: RouteGeometry | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (geometry === null || geometry.coordinates.length === 0) {
+      return;
+    }
+    const bounds = L.latLngBounds(
+      geometry.coordinates.map((c): [number, number] => [c.lat, c.lng])
+    );
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [map, geometry]);
+  return null;
+}
+
+function MapClickHandler({
+  onSelectStart,
+}: {
+  onSelectStart: (coordinate: Coordinate) => void;
+}) {
+  useMapEvents({
+    click: (e) => {
+      onSelectStart({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
   return null;
 }
 
@@ -44,6 +80,8 @@ type LeafletMapProps = {
   endMarker: Coordinate | null;
   waypoints: Waypoint[];
   routeGeometry: RouteGeometry | null;
+  /** 指定すると地図タップ・ピンのドラッグで出発地点を選択できる */
+  onSelectStart?: (coordinate: Coordinate) => void;
 };
 
 export function LeafletMap({
@@ -53,6 +91,7 @@ export function LeafletMap({
   endMarker,
   waypoints,
   routeGeometry,
+  onSelectStart,
 }: LeafletMapProps) {
   const polylinePositions =
     routeGeometry?.coordinates.map(
@@ -70,9 +109,27 @@ export function LeafletMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <MapUpdater center={center} zoom={zoom} />
+      <RouteFitter geometry={routeGeometry} />
+      {onSelectStart !== undefined && (
+        <MapClickHandler onSelectStart={onSelectStart} />
+      )}
 
       {startMarker !== null && (
-        <Marker position={[startMarker.lat, startMarker.lng]} icon={startIcon}>
+        <Marker
+          position={[startMarker.lat, startMarker.lng]}
+          icon={startIcon}
+          draggable={onSelectStart !== undefined}
+          eventHandlers={
+            onSelectStart !== undefined
+              ? {
+                  dragend: (e) => {
+                    const latlng = (e.target as L.Marker).getLatLng();
+                    onSelectStart({ lat: latlng.lat, lng: latlng.lng });
+                  },
+                }
+              : undefined
+          }
+        >
           <Popup>出発地点</Popup>
         </Marker>
       )}

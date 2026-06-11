@@ -26,6 +26,12 @@ export default function HomePage() {
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
+  // 出発地点の選択（地図タップ／ピンのドラッグ）は検索画面でのみ有効にする
+  const canSelectStart = view === "search" && !isLoading;
+
+  const handleSelectStart = (coordinate: Coordinate) => {
+    updateCondition({ start: coordinate });
+  };
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -75,7 +81,10 @@ export default function HomePage() {
             startMarker={condition.start}
             endMarker={null}
             waypoints={selectedRoute?.waypoints ?? []}
-            routeGeometry={selectedRoute?.geometry ?? null}
+            routeGeometry={
+              view === "result" ? selectedRoute?.geometry ?? null : null
+            }
+            onSelectStart={canSelectStart ? handleSelectStart : undefined}
           />
         </div>
 
