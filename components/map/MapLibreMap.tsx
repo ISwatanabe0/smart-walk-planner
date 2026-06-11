@@ -1,0 +1,331 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import type { Coordinate, RouteGeometry } from "@/types/map";
+import type { Waypoint } from "@/types/route";
+
+/**
+ * 地図スタイル。既定はOpenFreeMap（APIキー不要・無料・全世界）。
+ * 国土地理院ベクトルタイル等に差し替えたい場合は環境変数で上書きできる。
+ */
+const STYLE_URL =
+  process.env.NEXT_PUBLIC_MAP_STYLE_URL ??
+  "https://tiles.openfreemap.org/styles/liberty";
+
+/** ナビ（ヘディングアップ）時のズーム・傾き */
+const NAV_ZOOM = 17.5;
+const NAV_PITCH = 55;
+
+type MapLibreMapProps = {
+  center: Coordinate;
+  zoom: number;
+  startMarker: Coordinate | null;
+  endMarker: Coordinate | null;
+  waypoints: Waypoint[];
+  routeGeometry: RouteGeometry | null;
+  userPosition: Coordinate | null;
+  userTrail: Coordinate[];
+  /** 端末の向き（北=0°）。ナビ時に地図をこの方位へ回転させる */
+  bearingDeg: number | null;
+  /** ナビ（追従・ヘディングアップ・3D）モードか */
+  navMode: boolean;
+  onMapClick?: (coordinate: Coordinate) => void;
+  onMoveStart?: (coordinate: Coordinate) => void;
+  onMoveEnd?: (coordinate: Coordinate) => void;
+};
+
+function pinElement(color: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "map-pin";
+  el.innerHTML = `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 0C6.72 0 0 6.72 0 15c0 11.25 15 25 15 25s15-13.75 15-25C30 6.72 23.28 0 15 0z" fill="${color}"/>
+    <circle cx="15" cy="15" r="6" fill="white"/>
+  </svg>`;
+  return el;
+}
+
+function userElement(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "user-location-marker";
+  el.innerHTML =
+    '<div class="user-location-pulse"></div><div class="user-location-cone"></div><div class="user-location-dot"></div>';
+  return el;
+}
+
+function lineFeature(coords: Coordinate[]): GeoJSON.Feature<GeoJSON.LineString> {
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "LineString",
+      coordinates: coords.map((c) => [c.lng, c.lat]),
+    },
+  };
+}
+
+export function MapLibreMap(props: MapLibreMapProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const loadedRef = useRef(false);
+
+  // 最新のpropsをイベントハンドラから参照するためのref（再初期化を避ける）
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
+  const startMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const endMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const waypointMarkersRef = useRef<maplibregl.Marker[]>([]);
+
+  // ---- 初期化（一度だけ）----
+  useEffect(() => {
+    if (containerRef.current === null) {
+      return;
+    }
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: STYLE_URL,
+      center: [props.center.lng, props.center.lat],
+      zoom: props.zoom,
+      attributionControl: { compact: true },
+    });
+    mapRef.current = map;
+    map.addControl(
+      new maplibregl.NavigationControl({ visualizePitch: true }),
+      "top-right"
+    );
+
+    map.on("click", (e) => {
+      propsRef.current.onMapClick?.({
+        lat: e.lngLat.lat,
+        lng: e.lngLat.lng,
+      });
+    });
+
+    map.on("load", () => {
+      // ルート線・歩行軌跡のソースとレイヤー
+      map.addSource("route", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "route-line",
+        type: "line",
+        source: "route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#1a7f5a", "line-width": 6, "line-opacity": 0.85 },
+      });
+      map.addSource("trail", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "trail-line",
+        type: "line",
+        source: "trail",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#2563eb", "line-width": 6, "line-opacity": 0.9 },
+      });
+
+      // 3D建物（OpenMapTiles系スキーマの building レイヤーを立ち上げる）
+      try {
+        if (map.getSource("openmaptiles") !== undefined) {
+          const layers = map.getStyle().layers ?? [];
+          const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
+          map.addLayer(
+            {
+              id: "3d-buildings",
+              source: "openmaptiles",
+              "source-layer": "building",
+              type: "fill-extrusion",
+              minzoom: 14,
+              paint: {
+                "fill-extrusion-color": "#dcd6c8",
+                "fill-extrusion-height": [
+                  "coalesce",
+                  ["get", "render_height"],
+                  6,
+                ],
+                "fill-extrusion-base": [
+                  "coalesce",
+                  ["get", "render_min_height"],
+                  0,
+                ],
+                "fill-extrusion-opacity": 0.85,
+              },
+            },
+            firstSymbol
+          );
+        }
+      } catch {
+        // スタイルにbuilding情報がなければ3D建物はスキップ（致命的でない）
+      }
+
+      loadedRef.current = true;
+      syncRouteData();
+      syncTrailData();
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      loadedRef.current = false;
+    };
+    // 初期化は一度だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- ルート線の更新 ----
+  const syncRouteData = () => {
+    const map = mapRef.current;
+    if (map === null || !loadedRef.current) {
+      return;
+    }
+    const src = map.getSource("route") as maplibregl.GeoJSONSource | undefined;
+    const coords = propsRef.current.routeGeometry?.coordinates ?? [];
+    src?.setData({
+      type: "FeatureCollection",
+      features: coords.length > 1 ? [lineFeature(coords)] : [],
+    });
+  };
+
+  const syncTrailData = () => {
+    const map = mapRef.current;
+    if (map === null || !loadedRef.current) {
+      return;
+    }
+    const src = map.getSource("trail") as maplibregl.GeoJSONSource | undefined;
+    const coords = propsRef.current.userTrail;
+    src?.setData({
+      type: "FeatureCollection",
+      features: coords.length > 1 ? [lineFeature(coords)] : [],
+    });
+  };
+
+  useEffect(() => {
+    syncRouteData();
+  }, [props.routeGeometry]);
+
+  useEffect(() => {
+    syncTrailData();
+  }, [props.userTrail]);
+
+  // ---- 出発・ゴールピン ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) {
+      return;
+    }
+    const sync = (
+      ref: React.MutableRefObject<maplibregl.Marker | null>,
+      coord: Coordinate | null,
+      color: string,
+      onMove: ((c: Coordinate) => void) | undefined
+    ) => {
+      if (coord === null) {
+        ref.current?.remove();
+        ref.current = null;
+        return;
+      }
+      if (ref.current === null) {
+        const marker = new maplibregl.Marker({
+          element: pinElement(color),
+          anchor: "bottom",
+          draggable: onMove !== undefined,
+        });
+        marker.on("dragend", () => {
+          const { lng, lat } = marker.getLngLat();
+          onMove?.({ lat, lng });
+        });
+        marker.setLngLat([coord.lng, coord.lat]).addTo(map);
+        ref.current = marker;
+      } else {
+        ref.current.setLngLat([coord.lng, coord.lat]);
+        ref.current.setDraggable(onMove !== undefined);
+      }
+    };
+    sync(startMarkerRef, props.startMarker, "#1a7f5a", props.onMoveStart);
+    sync(endMarkerRef, props.endMarker, "#dc3545", props.onMoveEnd);
+  }, [props.startMarker, props.endMarker, props.onMoveStart, props.onMoveEnd]);
+
+  // ---- 経由スポット ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) {
+      return;
+    }
+    waypointMarkersRef.current.forEach((m) => m.remove());
+    waypointMarkersRef.current = props.waypoints.map((wp) => {
+      const el = document.createElement("div");
+      el.className = "waypoint-dot";
+      return new maplibregl.Marker({ element: el })
+        .setLngLat([wp.position.lng, wp.position.lat])
+        .addTo(map);
+    });
+  }, [props.waypoints]);
+
+  // ---- 現在地マーカー ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) {
+      return;
+    }
+    if (props.userPosition === null) {
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+      return;
+    }
+    if (userMarkerRef.current === null) {
+      userMarkerRef.current = new maplibregl.Marker({
+        element: userElement(),
+        anchor: "center",
+      })
+        .setLngLat([props.userPosition.lng, props.userPosition.lat])
+        .addTo(map);
+    } else {
+      userMarkerRef.current.setLngLat([
+        props.userPosition.lng,
+        props.userPosition.lat,
+      ]);
+    }
+    // ヘディングアップ時は進行方向が常に画面上方向になるため扇は上向き
+    const el = userMarkerRef.current.getElement();
+    const headingUp = props.navMode && props.bearingDeg !== null;
+    el.classList.toggle("has-heading", headingUp);
+  }, [props.userPosition, props.navMode, props.bearingDeg]);
+
+  // ---- カメラ（追従・ヘディングアップ・3D）----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) {
+      return;
+    }
+    if (props.navMode && props.userPosition !== null) {
+      map.easeTo({
+        center: [props.userPosition.lng, props.userPosition.lat],
+        zoom: NAV_ZOOM,
+        pitch: NAV_PITCH,
+        bearing: props.bearingDeg ?? map.getBearing(),
+        duration: 300,
+      });
+    } else {
+      map.easeTo({
+        center: [props.center.lng, props.center.lat],
+        zoom: props.zoom,
+        pitch: 0,
+        bearing: 0,
+        duration: 500,
+      });
+    }
+  }, [
+    props.navMode,
+    props.userPosition,
+    props.bearingDeg,
+    props.center,
+    props.zoom,
+  ]);
+
+  return <div ref={containerRef} style={{ height: "100%", width: "100%" }} />;
+}

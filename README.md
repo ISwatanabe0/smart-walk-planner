@@ -9,6 +9,7 @@
 - **こだわり検索**: 大通り回避、信号回避、観光名所経由のカスタマイズ。
 - **周回／片道ルート**: 出発地点に戻る周回、またはゴール地点を指定する片道を選択。地図タップで地点を設定。
 - **サイト内GPSトラッキング**: Google Mapsに遷移せず、ブラウザの Geolocation API で散歩中の現在地・軌跡・歩行距離・経過時間・歩数・消費カロリーを記録（Wake Lockで画面消灯を抑止）。
+- **ナビ風ヘディングアップ表示**: 散歩中はGoogleマップのナビのように、端末が向いている方角へ地図を回転（コンパス連動）。斜め見下ろしの3D視点＋3D建物で進む方向が直感的に分かる。
 - **進行方向ガイド＆ゴール演出**: 次に進む方向を矢印で常時表示、ルート逸脱を警告、ゴール接近〜到着で紙吹雪の達成演出。
 - **Google Maps連携**: 作成したルートをスマホのGoogleマップへ同期。
 
@@ -19,8 +20,18 @@
 
 ## 技術スタック
 - **Frontend**: Next.js / TypeScript
-- **Map**: Leaflet / OpenStreetMap
-- **Algorithm**: A* (A-star) search with custom weighting
+- **Map**: MapLibre GL JS（ベクタータイル・回転・3D傾き対応）
+- **地図タイル**: OpenFreeMap（APIキー不要・無料）。`NEXT_PUBLIC_MAP_STYLE_URL` で
+  国土地理院ベクトルタイル等の任意のスタイルURLに差し替え可能
+- **Routing**: OSRM 歩行者プロファイル（routed-foot）
+
+## 地図スタイルの設定（任意）
+既定では APIキー不要の OpenFreeMap を使用します。別のスタイルに変更する場合は
+環境変数で上書きできます（Vercel の Environment Variables などに設定）。
+
+```
+NEXT_PUBLIC_MAP_STYLE_URL=https://example.com/your-style.json
+```
 
 ## ドキュメント
 詳細は `/docs` フォルダ内の設計書を参照してください。
