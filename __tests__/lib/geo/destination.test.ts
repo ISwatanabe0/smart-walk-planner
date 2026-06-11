@@ -1,4 +1,8 @@
-import { destinationPoint, haversineDistance } from "@/lib/geo/destination";
+import {
+  destinationPoint,
+  haversineDistance,
+  initialBearing,
+} from "@/lib/geo/destination";
 import type { Coordinate } from "@/types/map";
 
 const TOKYO: Coordinate = { lat: 35.6812, lng: 139.7671 };
@@ -148,5 +152,57 @@ describe("haversineDistance", () => {
         expect(measured).toBeCloseTo(distance, 0);
       });
     });
+  });
+});
+
+describe("initialBearing", () => {
+  it("真北の点への方位は約0°", () => {
+    // Given: 緯度のみ増加させた点
+    const north: Coordinate = { lat: TOKYO.lat + 0.01, lng: TOKYO.lng };
+    // When
+    const bearing = initialBearing(TOKYO, north);
+    // Then
+    expect(bearing).toBeCloseTo(0, 0);
+  });
+
+  it("真東の点への方位は約90°", () => {
+    // Given: 経度のみ増加させた点
+    const east: Coordinate = { lat: TOKYO.lat, lng: TOKYO.lng + 0.01 };
+    // When
+    const bearing = initialBearing(TOKYO, east);
+    // Then: 短距離なら初期方位はほぼ90°
+    expect(bearing).toBeGreaterThan(89);
+    expect(bearing).toBeLessThan(91);
+  });
+
+  it("真南の点への方位は約180°", () => {
+    // Given
+    const south: Coordinate = { lat: TOKYO.lat - 0.01, lng: TOKYO.lng };
+    // When
+    const bearing = initialBearing(TOKYO, south);
+    // Then
+    expect(bearing).toBeCloseTo(180, 0);
+  });
+
+  it("destinationPoint との整合性: 指定方位で進めた点への方位が一致する", () => {
+    // Given
+    const cases = [45, 135, 225, 315];
+    cases.forEach((bearingDeg) => {
+      // When
+      const dest = destinationPoint(TOKYO, bearingDeg, 1000);
+      const measured = initialBearing(TOKYO, dest);
+      // Then: 誤差1°以内
+      expect(measured).toBeCloseTo(bearingDeg, 0);
+    });
+  });
+
+  it("戻り値は常に 0 以上 360 未満", () => {
+    // Given: 西方向（負の角度になりやすいケース）
+    const west: Coordinate = { lat: TOKYO.lat, lng: TOKYO.lng - 0.01 };
+    // When
+    const bearing = initialBearing(TOKYO, west);
+    // Then
+    expect(bearing).toBeGreaterThanOrEqual(0);
+    expect(bearing).toBeLessThan(360);
   });
 });

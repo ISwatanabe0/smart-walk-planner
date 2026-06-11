@@ -29,11 +29,14 @@ export function buildGoogleMapsUrl(route: WalkRoute | null): string | null {
   const coords = route.geometry.coordinates;
 
   if (coords.length > 2) {
-    // 周回ルートは coords の末尾が start と同一座標のため除外する。
-    // coords.slice(0, -1) = [start, wp1, ..., wpN]（末尾の start を含まない）
+    // 周回ルート（先頭と末尾が同一座標）は末尾の start を除外する。
     // これにより origin（先頭）≠ destination（末尾の中間点）が保証され、
     // Google Maps がルートを計算できる。
-    const coordsForUrl = coords.slice(0, -1);
+    // 片道ルートは末尾がゴール地点そのものなので全点を使う。
+    const first = coords[0];
+    const last = coords[coords.length - 1];
+    const isLoop = first.lat === last.lat && first.lng === last.lng;
+    const coordsForUrl = isLoop ? coords.slice(0, -1) : coords;
     const sampled = sampleCoordinates(coordsForUrl, MAX_INNER_WAYPOINTS + 1);
     const pathStr = sampled.map((c) => `${c.lat},${c.lng}`).join("/");
     return `https://www.google.com/maps/dir/${pathStr}?travelmode=walking`;

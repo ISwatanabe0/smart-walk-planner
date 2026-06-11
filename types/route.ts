@@ -20,7 +20,8 @@ export type RouteTag =
   | "信号少なめ"
   | "大通り回避"
   | "観光名所あり"
-  | "周回ルート";
+  | "周回ルート"
+  | "片道ルート";
 
 export type RouteSummary = {
   distanceMeters: number;

@@ -28,8 +28,14 @@ type MapViewProps = {
   endMarker: Coordinate | null;
   waypoints: Waypoint[];
   routeGeometry: RouteGeometry | null;
-  /** 指定すると地図タップ・ピンのドラッグで出発地点を選択できる */
-  onSelectStart?: (coordinate: Coordinate) => void;
+  /** 指定すると地図タップで地点を選択できる */
+  onMapClick?: (coordinate: Coordinate) => void;
+  /** 指定すると出発地点のピンをドラッグで動かせる */
+  onMoveStart?: (coordinate: Coordinate) => void;
+  /** 指定するとゴール地点のピンをドラッグで動かせる */
+  onMoveEnd?: (coordinate: Coordinate) => void;
+  /** 地図上部に表示する操作ヒント（null で非表示） */
+  hint?: string | null;
 };
 
 export function MapView({
@@ -38,11 +44,14 @@ export function MapView({
   endMarker,
   waypoints,
   routeGeometry,
-  onSelectStart,
+  onMapClick,
+  onMoveStart,
+  onMoveEnd,
+  hint = null,
 }: MapViewProps) {
   const mapCenter = center ?? startMarker ?? DEFAULT_CENTER;
   const zoom = center !== null || startMarker !== null ? LOCATION_ZOOM : DEFAULT_ZOOM;
-  const isSelectable = onSelectStart !== undefined;
+  const isSelectable = onMapClick !== undefined;
 
   return (
     <div
@@ -56,11 +65,11 @@ export function MapView({
         endMarker={endMarker}
         waypoints={waypoints}
         routeGeometry={routeGeometry}
-        onSelectStart={onSelectStart}
+        onMapClick={onMapClick}
+        onMoveStart={onMoveStart}
+        onMoveEnd={onMoveEnd}
       />
-      {isSelectable && startMarker === null && (
-        <div className="map-hint">地図をタップして出発地点を選択</div>
-      )}
+      {hint !== null && <div className="map-hint">{hint}</div>}
     </div>
   );
 }

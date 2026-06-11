@@ -26,12 +26,27 @@ export default function HomePage() {
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
-  // 出発地点の選択（地図タップ／ピンのドラッグ）は検索画面でのみ有効にする
-  const canSelectStart = view === "search" && !isLoading;
+  // 地点の選択（地図タップ／ピンのドラッグ）は検索画面でのみ有効にする
+  const canSelectPoint = view === "search" && !isLoading;
+  const isOneway = condition.routeType === "oneway";
 
-  const handleSelectStart = (coordinate: Coordinate) => {
-    updateCondition({ start: coordinate });
+  // タップ位置の振り分け: 出発地点が未設定なら出発地点、
+  // 片道モードで出発地点設定済みならゴール地点を設定・更新する
+  const handleMapClick = (coordinate: Coordinate) => {
+    if (condition.start === null || !isOneway) {
+      updateCondition({ start: coordinate });
+      return;
+    }
+    updateCondition({ end: coordinate });
   };
+
+  const mapHint = !canSelectPoint
+    ? null
+    : condition.start === null
+      ? "地図をタップして出発地点を選択"
+      : isOneway
+        ? "地図をタップしてゴール地点を選択"
+        : null;
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -79,12 +94,23 @@ export default function HomePage() {
           <MapView
             center={mapCenter}
             startMarker={condition.start}
-            endMarker={null}
+            endMarker={isOneway ? condition.end : null}
             waypoints={selectedRoute?.waypoints ?? []}
             routeGeometry={
               view === "result" ? selectedRoute?.geometry ?? null : null
             }
-            onSelectStart={canSelectStart ? handleSelectStart : undefined}
+            onMapClick={canSelectPoint ? handleMapClick : undefined}
+            onMoveStart={
+              canSelectPoint
+                ? (coordinate) => updateCondition({ start: coordinate })
+                : undefined
+            }
+            onMoveEnd={
+              canSelectPoint
+                ? (coordinate) => updateCondition({ end: coordinate })
+                : undefined
+            }
+            hint={mapHint}
           />
         </div>
 

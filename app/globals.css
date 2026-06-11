@@ -183,6 +183,41 @@ body {
   flex: 1;
 }
 
+/* ---- Route type toggle ---- */
+.route-type-toggle {
+  display: flex;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.route-type-option {
+  flex: 1;
+  text-align: center;
+  padding: 9px 4px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: white;
+  color: #495057;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.route-type-option + .route-type-option {
+  border-left: 1px solid #ced4da;
+}
+.route-type-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.route-type-option.selected {
+  background: #1a7f5a;
+  color: white;
+  font-weight: 600;
+}
+.route-type-option:not(.selected):hover {
+  background: #f0faf5;
+}
+
 /* ---- Start location ---- */
 .start-location {
   display: flex;

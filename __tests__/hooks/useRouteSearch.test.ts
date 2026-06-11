@@ -49,7 +49,22 @@ describe("useRouteSearch", () => {
       expect(preferences.avoidTrafficLights).toBe(false);
       expect(preferences.avoidMainRoads).toBe(false);
       expect(preferences.includeSightseeing).toBe(false);
-      expect(preferences.loopRoute).toBe(false);
+    });
+
+    it("routeType が 'loop' で初期化される", () => {
+      // Given
+      // When
+      const { result } = renderHook(() => useRouteSearch());
+      // Then: デフォルトは周回ルート
+      expect(result.current.condition.routeType).toBe("loop");
+    });
+
+    it("end が null で初期化される", () => {
+      // Given
+      // When
+      const { result } = renderHook(() => useRouteSearch());
+      // Then: ゴール地点は未設定
+      expect(result.current.condition.end).toBeNull();
     });
 
     it("isLoading が false で初期化される", () => {

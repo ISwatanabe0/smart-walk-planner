@@ -9,11 +9,6 @@ jest.mock("@/lib/routing/osrm", () => ({
   fetchOsrmRoute: jest.fn(),
 }));
 
-// destinationPoint をモック（実装は純粋関数なのでスパイのみ）
-jest.mock("@/lib/geo/destination", () => ({
-  destinationPoint: jest.fn().mockReturnValue({ lat: 35.69, lng: 139.77 }),
-}));
-
 import { fetchOsrmRoute } from "@/lib/routing/osrm";
 
 const mockFetchOsrmRoute = fetchOsrmRoute as jest.MockedFunction<typeof fetchOsrmRoute>;
@@ -25,7 +20,9 @@ const mockOsrmResult = {
     [139.7671, 35.6812],
   ] as Array<[number, number]>,
   distanceMeters: 3200,
-  durationSeconds: 2400,
+  // 公開OSRMの duration は車速ベース（短すぎる）想定の値。
+  // 所要時間がこの値からではなく距離から計算されることを検証する
+  durationSeconds: 600,
 };
 
 function makeRequest(body: unknown): NextRequest {
@@ -194,12 +191,9 @@ describe("POST /api/routes/generate", () => {
       expect(body.data.routes[0].tags).toContain("観光名所あり");
     });
 
-    it("preferences.loopRoute: true のとき tags に '周回ルート' が含まれる", async () => {
+    it("routeType 未指定（周回）のとき tags に '周回ルート' が含まれる", async () => {
       // Given
-      const req = makeRequest({
-        start: { lat: 35.6812, lng: 139.7671 },
-        preferences: { loopRoute: true },
-      });
+      const req = makeRequest({ start: { lat: 35.6812, lng: 139.7671 } });
       // When
       const res = await POST(req);
       const body = await res.json();
@@ -207,7 +201,22 @@ describe("POST /api/routes/generate", () => {
       expect(body.data.routes[0].tags).toContain("周回ルート");
     });
 
-    it("preferences が全て false のとき tags は空配列", async () => {
+    it("routeType: 'oneway' のとき tags に '片道ルート' が含まれる", async () => {
+      // Given
+      const req = makeRequest({
+        start: { lat: 35.6812, lng: 139.7671 },
+        end: { lat: 35.7, lng: 139.78 },
+        routeType: "oneway",
+      });
+      // When
+      const res = await POST(req);
+      const body = await res.json();
+      // Then
+      expect(body.data.routes[0].tags).toContain("片道ルート");
+      expect(body.data.routes[0].tags).not.toContain("周回ルート");
+    });
+
+    it("preferences が全て false のとき tags はルートタイプのみ", async () => {
       // Given
       const req = makeRequest({
         start: { lat: 35.6812, lng: 139.7671 },
@@ -216,14 +225,13 @@ describe("POST /api/routes/generate", () => {
           avoidTrafficLights: false,
           avoidMainRoads: false,
           includeSightseeing: false,
-          loopRoute: false,
         },
       });
       // When
       const res = await POST(req);
       const body = await res.json();
       // Then
-      expect(body.data.routes[0].tags).toHaveLength(0);
+      expect(body.data.routes[0].tags).toEqual(["周回ルート"]);
     });
 
     it("複数の preferences が true のとき対応する全 tags が含まれる", async () => {
@@ -238,6 +246,89 @@ describe("POST /api/routes/generate", () => {
       // Then
       expect(body.data.routes[0].tags).toContain("景観重視");
       expect(body.data.routes[0].tags).toContain("大通り回避");
+    });
+  });
+
+  describe("推定所要時間", () => {
+    it("estimatedMinutes は徒歩速度（80m/分）で距離から計算される", async () => {
+      // Given: OSRM の距離 3200m / duration 600秒（車速ベースの値）
+      const req = makeRequest({ start: { lat: 35.6812, lng: 139.7671 } });
+      // When
+      const res = await POST(req);
+      const body = await res.json();
+      // Then: 3200m ÷ 80m/分 = 40分（OSRM duration の 600秒=10分 ではない）
+      expect(body.data.routes[0].summary.estimatedMinutes).toBe(40);
+    });
+  });
+
+  describe("片道ルート", () => {
+    const onewayBody = {
+      start: { lat: 35.6812, lng: 139.7671 },
+      end: { lat: 35.7, lng: 139.78 },
+      routeType: "oneway",
+    };
+
+    it("有効なリクエストで3候補のルートを返す", async () => {
+      // Given
+      const req = makeRequest(onewayBody);
+      // When
+      const res = await POST(req);
+      const body = await res.json();
+      // Then
+      expect(res.status).toBe(200);
+      expect(body.data.routes).toHaveLength(3);
+    });
+
+    it("各候補の経由点は start で始まり end で終わる", async () => {
+      // Given
+      const req = makeRequest(onewayBody);
+      // When
+      await POST(req);
+      // Then: OSRM への全リクエストが start → ... → end の形
+      expect(mockFetchOsrmRoute).toHaveBeenCalledTimes(3);
+      mockFetchOsrmRoute.mock.calls.forEach(([waypoints]) => {
+        expect(waypoints[0]).toEqual(onewayBody.start);
+        expect(waypoints[waypoints.length - 1]).toEqual(onewayBody.end);
+      });
+    });
+
+    it("1候補目は直行、2・3候補目は迂回経由点を含む", async () => {
+      // Given
+      const req = makeRequest(onewayBody);
+      // When
+      await POST(req);
+      // Then
+      const calls = mockFetchOsrmRoute.mock.calls;
+      expect(calls[0][0]).toHaveLength(2);
+      expect(calls[1][0]).toHaveLength(3);
+      expect(calls[2][0]).toHaveLength(3);
+    });
+
+    it("routeType: 'oneway' で end がない場合は 400 を返す", async () => {
+      // Given
+      const req = makeRequest({
+        start: { lat: 35.6812, lng: 139.7671 },
+        routeType: "oneway",
+      });
+      // When
+      const res = await POST(req);
+      const body = await res.json();
+      // Then
+      expect(res.status).toBe(400);
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe("INVALID_PARAMETER");
+    });
+
+    it("routeType: 'loop' なら end がなくても成功する", async () => {
+      // Given
+      const req = makeRequest({
+        start: { lat: 35.6812, lng: 139.7671 },
+        routeType: "loop",
+      });
+      // When
+      const res = await POST(req);
+      // Then
+      expect(res.status).toBe(200);
     });
   });
 
