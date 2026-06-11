@@ -8,6 +8,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
+import { useGpsTracking } from "@/features/walk-tracking/hooks/useGpsTracking";
+import { TrackingPanel } from "@/features/walk-tracking/components/TrackingPanel";
 import { buildGoogleMapsUrl } from "@/features/walk-planner/services/googleMapsLinkBuilder";
 import type { WalkRoute } from "@/types/route";
 import type { Coordinate } from "@/types/map";
@@ -17,6 +19,7 @@ type PageView = "search" | "result" | "error";
 export default function HomePage() {
   const { condition, isLoading, errors, updateCondition, submitSearch } =
     useRouteSearch();
+  const tracking = useGpsTracking();
 
   const [view, setView] = useState<PageView>("search");
   const [routes, setRoutes] = useState<WalkRoute[]>([]);
@@ -26,12 +29,27 @@ export default function HomePage() {
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
-  // 出発地点の選択（地図タップ／ピンのドラッグ）は検索画面でのみ有効にする
-  const canSelectStart = view === "search" && !isLoading;
+  // 地点の選択（地図タップ／ピンのドラッグ）は検索画面かつ非トラッキング時のみ有効
+  const canSelectPoint = view === "search" && !isLoading && !tracking.isTracking;
+  const isOneway = condition.routeType === "oneway";
 
-  const handleSelectStart = (coordinate: Coordinate) => {
-    updateCondition({ start: coordinate });
+  // タップ位置の振り分け: 出発地点が未設定なら出発地点、
+  // 片道モードで出発地点設定済みならゴール地点を設定・更新する
+  const handleMapClick = (coordinate: Coordinate) => {
+    if (condition.start === null || !isOneway) {
+      updateCondition({ start: coordinate });
+      return;
+    }
+    updateCondition({ end: coordinate });
   };
+
+  const mapHint = !canSelectPoint
+    ? null
+    : condition.start === null
+      ? "地図をタップして出発地点を選択"
+      : isOneway
+        ? "地図をタップしてゴール地点を選択"
+        : null;
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -79,12 +97,25 @@ export default function HomePage() {
           <MapView
             center={mapCenter}
             startMarker={condition.start}
-            endMarker={null}
+            endMarker={isOneway ? condition.end : null}
             waypoints={selectedRoute?.waypoints ?? []}
             routeGeometry={
               view === "result" ? selectedRoute?.geometry ?? null : null
             }
-            onSelectStart={canSelectStart ? handleSelectStart : undefined}
+            userPosition={tracking.isTracking ? tracking.currentPosition : null}
+            userTrail={tracking.isTracking ? tracking.trail : []}
+            onMapClick={canSelectPoint ? handleMapClick : undefined}
+            onMoveStart={
+              canSelectPoint
+                ? (coordinate) => updateCondition({ start: coordinate })
+                : undefined
+            }
+            onMoveEnd={
+              canSelectPoint
+                ? (coordinate) => updateCondition({ end: coordinate })
+                : undefined
+            }
+            hint={mapHint}
           />
         </div>
 
@@ -108,12 +139,15 @@ export default function HomePage() {
             )}
 
             {!isLoading && view === "result" && (
-              <RouteResultPanel
-                routes={routes}
-                onOpenGoogleMaps={handleOpenGoogleMaps}
-                onChangeCondition={() => setView("search")}
-                onRetry={handleRetry}
-              />
+              <>
+                <TrackingPanel tracking={tracking} />
+                <RouteResultPanel
+                  routes={routes}
+                  onOpenGoogleMaps={handleOpenGoogleMaps}
+                  onChangeCondition={() => setView("search")}
+                  onRetry={handleRetry}
+                />
+              </>
             )}
 
             {!isLoading && view === "error" && (

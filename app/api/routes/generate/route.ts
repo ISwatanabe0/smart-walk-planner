@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { destinationPoint } from "@/lib/geo/destination";
+import {
+  destinationPoint,
+  haversineDistance,
+  initialBearing,
+} from "@/lib/geo/destination";
 import { fetchOsrmRoute } from "@/lib/routing/osrm";
-import type { RoutePreferences } from "@/types/preferences";
+import { WALKING_SPEED_METERS_PER_MINUTE } from "@/constants/defaultValues";
+import type { RoutePreferences, RouteType } from "@/types/preferences";
 import type { Coordinate } from "@/types/map";
 import type { RouteTag } from "@/types/route";
 
 type GenerateRouteRequest = {
   start: Coordinate;
+  end?: Coordinate | null;
+  routeType?: RouteType;
   distanceMeters?: number;
   durationMinutes?: number | null;
   preferences?: Partial<RoutePreferences>;
@@ -31,14 +38,82 @@ const ROAD_TO_STRAIGHT_RATIO = 1.4;
 /** 各候補ルートの初期方位（度）*/
 const CANDIDATE_BASE_BEARINGS = [0, 60, 120] as const;
 
-function buildRouteTags(preferences: Partial<RoutePreferences>): RouteTag[] {
+/** 片道ルートで候補に変化をつけるための最小迂回幅（直線距離に対する比率） */
+const MIN_DETOUR_RATIO = 0.25;
+
+function buildRouteTags(
+  preferences: Partial<RoutePreferences>,
+  routeType: RouteType
+): RouteTag[] {
   const tags: RouteTag[] = [];
   if (preferences.scenery === true) tags.push("景観重視");
   if (preferences.avoidTrafficLights === true) tags.push("信号少なめ");
   if (preferences.avoidMainRoads === true) tags.push("大通り回避");
   if (preferences.includeSightseeing === true) tags.push("観光名所あり");
-  if (preferences.loopRoute === true) tags.push("周回ルート");
+  tags.push(routeType === "loop" ? "周回ルート" : "片道ルート");
   return tags;
+}
+
+function isValidCoordinate(value: Coordinate | null | undefined): value is Coordinate {
+  return typeof value?.lat === "number" && typeof value?.lng === "number";
+}
+
+/**
+ * 周回ルート: 出発地点を中心に経由点を三角形状に配置し、出発地点へ戻る
+ * 候補ごとの経由点リストを返す
+ */
+function buildLoopWaypointSets(
+  start: Coordinate,
+  distanceMeters: number,
+  candidateCount: number
+): { waypointSets: Coordinate[][]; radiusMeters: number } {
+  // 目標距離 = 半径 × PERIMETER_TO_RADIUS_RATIO × ROAD_TO_STRAIGHT_RATIO
+  const radius = distanceMeters / (PERIMETER_TO_RADIUS_RATIO * ROAD_TO_STRAIGHT_RATIO);
+
+  const waypointSets = CANDIDATE_BASE_BEARINGS.slice(0, candidateCount).map(
+    (baseBearing) => {
+      const wp1 = destinationPoint(start, baseBearing, radius);
+      const wp2 = destinationPoint(start, baseBearing + 120, radius);
+      return [start, wp1, wp2, start];
+    }
+  );
+  return { waypointSets, radiusMeters: radius };
+}
+
+/**
+ * 片道ルート: 直行ルートと、中間点を左右に膨らませた迂回ルートを候補にする
+ */
+function buildOnewayWaypointSets(
+  start: Coordinate,
+  end: Coordinate,
+  distanceMeters: number,
+  candidateCount: number
+): { waypointSets: Coordinate[][]; radiusMeters: number } {
+  const straight = haversineDistance(start, end);
+  const bearing = initialBearing(start, end);
+  const midpoint = destinationPoint(start, bearing, straight / 2);
+
+  // 目標距離（道路距離）を直線距離換算した経路長 L に対し、
+  // 中間点の横方向オフセット h は 2√((S/2)² + h²) = L から求める
+  const targetStraight = Math.max(
+    distanceMeters / ROAD_TO_STRAIGHT_RATIO,
+    straight
+  );
+  const minOffset = straight * MIN_DETOUR_RATIO;
+  const offset = Math.max(
+    Math.sqrt(Math.max((targetStraight / 2) ** 2 - (straight / 2) ** 2, 0)),
+    minOffset
+  );
+
+  const detourRight = destinationPoint(midpoint, bearing + 90, offset);
+  const detourLeft = destinationPoint(midpoint, bearing - 90, offset);
+
+  const waypointSets = [
+    [start, end],
+    [start, detourRight, end],
+    [start, detourLeft, end],
+  ].slice(0, candidateCount);
+  return { waypointSets, radiusMeters: straight / 2 + offset };
 }
 
 export async function POST(request: NextRequest) {
@@ -52,10 +127,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (
-    typeof body.start?.lat !== "number" ||
-    typeof body.start?.lng !== "number"
-  ) {
+  if (!isValidCoordinate(body.start)) {
     return NextResponse.json(
       {
         success: false,
@@ -65,51 +137,63 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const routeType: RouteType = body.routeType ?? "loop";
+
+  if (routeType === "oneway" && !isValidCoordinate(body.end)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INVALID_PARAMETER",
+          message: "end.lat and end.lng are required for oneway routes",
+        },
+      },
+      { status: 400 }
+    );
+  }
+
   const start = body.start;
   const distanceMeters = body.distanceMeters ?? 3000;
   const preferences = body.preferences ?? {};
   const candidateCount = Math.min(body.options?.candidateCount ?? 3, 5);
-  const tags = buildRouteTags(preferences);
+  const tags = buildRouteTags(preferences, routeType);
 
-  // 三角形ルートの半径計算
-  // 目標距離 = 半径 × PERIMETER_TO_RADIUS_RATIO × ROAD_TO_STRAIGHT_RATIO
-  const radius = distanceMeters / (PERIMETER_TO_RADIUS_RATIO * ROAD_TO_STRAIGHT_RATIO);
+  const { waypointSets, radiusMeters } =
+    routeType === "oneway" && isValidCoordinate(body.end)
+      ? buildOnewayWaypointSets(start, body.end, distanceMeters, candidateCount)
+      : buildLoopWaypointSets(start, distanceMeters, candidateCount);
 
-  // 各候補の経由点を並列生成してOSRMにリクエスト
-  const candidatePromises = CANDIDATE_BASE_BEARINGS.slice(0, candidateCount).map(
-    async (baseBearing, i) => {
-      // 2つの経由点を120°間隔で配置
-      const wp1 = destinationPoint(start, baseBearing, radius);
-      const wp2 = destinationPoint(start, baseBearing + 120, radius);
+  const candidatePromises = waypointSets.map(async (waypoints, i) => {
+    const osrm = await fetchOsrmRoute(waypoints);
 
-      // OSRM: 出発 → 経由1 → 経由2 → 出発（周回ルート）
-      const osrm = await fetchOsrmRoute([start, wp1, wp2, start]);
+    // 公開OSRMサーバーの duration は車速ベースで実態より大幅に短いため、
+    // 徒歩速度（80m/分 ≒ 4.8km/h）から所要時間を算出する
+    const estimatedMinutes = Math.round(
+      osrm.distanceMeters / WALKING_SPEED_METERS_PER_MINUTE
+    );
 
-      const estimatedMinutes = Math.round(osrm.durationSeconds / 60);
-
-      return {
-        routeId: `route-${String(i + 1).padStart(3, "0")}`,
-        summary: {
-          distanceMeters: osrm.distanceMeters,
-          estimatedMinutes,
-          sceneryScore: 70 + i * 3,
-          trafficLightScore: 75 - i * 2,
-          mainRoadAvoidanceScore: 80 - i * 5,
-        },
-        geometry: {
-          type: "LineString" as const,
-          coordinates: osrm.coordinates, // [lng, lat][] — GeoJSON形式
-        },
-        waypoints: [] as Array<{
-          name: string;
-          lat: number;
-          lng: number;
-          type: "generic";
-        }>,
-        tags,
-      };
-    }
-  );
+    return {
+      routeId: `route-${String(i + 1).padStart(3, "0")}`,
+      summary: {
+        distanceMeters: osrm.distanceMeters,
+        estimatedMinutes,
+        sceneryScore: 70 + i * 3,
+        trafficLightScore: 75 - i * 2,
+        mainRoadAvoidanceScore: 80 - i * 5,
+      },
+      geometry: {
+        type: "LineString" as const,
+        coordinates: osrm.coordinates, // [lng, lat][] — GeoJSON形式
+      },
+      waypoints: [] as Array<{
+        name: string;
+        lat: number;
+        lng: number;
+        type: "generic";
+      }>,
+      tags,
+    };
+  });
 
   try {
     const routes = await Promise.all(candidatePromises);
@@ -118,7 +202,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         routes,
-        searchArea: { radiusMeters: Math.round(radius) },
+        searchArea: { radiusMeters: Math.round(radiusMeters) },
       },
     });
   } catch (error) {

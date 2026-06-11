@@ -62,6 +62,8 @@ export async function searchRoutes(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       start: condition.start,
+      end: condition.routeType === "oneway" ? condition.end : null,
+      routeType: condition.routeType,
       distanceMeters: condition.distanceMeters,
       durationMinutes: condition.durationMinutes,
       preferences: condition.preferences,

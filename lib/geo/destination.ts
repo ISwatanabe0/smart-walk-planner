@@ -48,3 +48,19 @@ export function haversineDistance(a: Coordinate, b: Coordinate): number {
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
 }
+
+/**
+ * a から b へ向かう初期方位角（度）を計算する: 0=北, 90=東, 180=南, 270=西
+ */
+export function initialBearing(a: Coordinate, b: Coordinate): number {
+  const φ1 = (a.lat * Math.PI) / 180;
+  const φ2 = (b.lat * Math.PI) / 180;
+  const Δλ = ((b.lng - a.lng) * Math.PI) / 180;
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) -
+    Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const θ = Math.atan2(y, x);
+  return (((θ * 180) / Math.PI) + 360) % 360;
+}

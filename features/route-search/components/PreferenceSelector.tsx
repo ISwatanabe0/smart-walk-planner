@@ -16,7 +16,6 @@ const PREFERENCE_OPTIONS: {
   { key: "avoidTrafficLights", label: "信号回避" },
   { key: "avoidMainRoads", label: "大通り回避" },
   { key: "includeSightseeing", label: "観光名所経由" },
-  { key: "loopRoute", label: "周回ルート" },
 ];
 
 export function PreferenceSelector({

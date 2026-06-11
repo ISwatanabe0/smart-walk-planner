@@ -183,6 +183,41 @@ body {
   flex: 1;
 }
 
+/* ---- Route type toggle ---- */
+.route-type-toggle {
+  display: flex;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.route-type-option {
+  flex: 1;
+  text-align: center;
+  padding: 9px 4px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: white;
+  color: #495057;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.route-type-option + .route-type-option {
+  border-left: 1px solid #ced4da;
+}
+.route-type-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.route-type-option.selected {
+  background: #1a7f5a;
+  color: white;
+  font-weight: 600;
+}
+.route-type-option:not(.selected):hover {
+  background: #f0faf5;
+}
+
 /* ---- Start location ---- */
 .start-location {
   display: flex;
@@ -244,6 +279,84 @@ body {
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
+}
+
+/* ---- Tracking panel ---- */
+.tracking-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tracking-active {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tracking-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.tracking-stat {
+  text-align: center;
+  padding: 10px 4px;
+  background: #eef4ff;
+  border-radius: 6px;
+}
+.tracking-stat-value {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+.tracking-stat-label {
+  font-size: 0.6875rem;
+  color: #6c757d;
+  margin-top: 2px;
+}
+.tracking-accuracy {
+  font-size: 0.75rem;
+  color: #6c757d;
+  text-align: center;
+}
+
+/* ---- Current location marker (tracking) ---- */
+.user-location-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.user-location-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  background: #2563eb;
+  border: 2.5px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.user-location-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  background: rgba(37, 99, 235, 0.35);
+  border-radius: 50%;
+  animation: user-pulse 1.6s ease-out infinite;
+}
+@keyframes user-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 
 /* ---- Loading spinner ---- */

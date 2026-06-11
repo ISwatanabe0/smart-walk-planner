@@ -17,6 +17,8 @@ type UseRouteSearchReturn = {
 
 const initialCondition: RouteSearchCondition = {
   start: null,
+  end: null,
+  routeType: "loop",
   distanceMeters: DEFAULT_DISTANCE_METERS,
   durationMinutes: null,
   preferences: {
@@ -24,7 +26,6 @@ const initialCondition: RouteSearchCondition = {
     avoidTrafficLights: false,
     avoidMainRoads: false,
     includeSightseeing: false,
-    loopRoute: false,
   },
 };
 

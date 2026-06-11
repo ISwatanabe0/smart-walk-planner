@@ -4,6 +4,8 @@ import { DEFAULT_DISTANCE_METERS } from "@/constants/defaultValues";
 
 const validCondition: RouteSearchCondition = {
   start: { lat: 35.6812, lng: 139.7671 },
+  end: null,
+  routeType: "loop",
   distanceMeters: DEFAULT_DISTANCE_METERS,
   durationMinutes: null,
   preferences: {
@@ -11,7 +13,6 @@ const validCondition: RouteSearchCondition = {
     avoidTrafficLights: false,
     avoidMainRoads: false,
     includeSightseeing: false,
-    loopRoute: false,
   },
 };
 
@@ -117,6 +118,62 @@ describe("validateRouteSearchCondition", () => {
       // Then
       const distanceError = errors.find((e) => e.field === "distanceMeters");
       expect(distanceError).toBeDefined();
+    });
+  });
+
+  describe("end フィールド（ゴール地点）", () => {
+    it("周回ルートでは end が null でもエラーにならない", () => {
+      // Given: 周回（出発地点に戻る）
+      const condition: RouteSearchCondition = {
+        ...validCondition,
+        routeType: "loop",
+        end: null,
+      };
+      // When
+      const errors = validateRouteSearchCondition(condition);
+      // Then
+      expect(errors.find((e) => e.field === "end")).toBeUndefined();
+    });
+
+    it("片道ルートで end が null の場合はエラーを返す", () => {
+      // Given: 片道なのにゴール未設定
+      const condition: RouteSearchCondition = {
+        ...validCondition,
+        routeType: "oneway",
+        end: null,
+      };
+      // When
+      const errors = validateRouteSearchCondition(condition);
+      // Then
+      const endError = errors.find((e) => e.field === "end");
+      expect(endError).toBeDefined();
+      expect(endError?.message).toBeTruthy();
+    });
+
+    it("片道ルートで有効な end が設定されていればエラーなし", () => {
+      // Given
+      const condition: RouteSearchCondition = {
+        ...validCondition,
+        routeType: "oneway",
+        end: { lat: 35.7, lng: 139.78 },
+      };
+      // When
+      const errors = validateRouteSearchCondition(condition);
+      // Then
+      expect(errors.find((e) => e.field === "end")).toBeUndefined();
+    });
+
+    it("片道ルートで start と end が同一座標の場合はエラーを返す", () => {
+      // Given: 出発とゴールが同じ
+      const condition: RouteSearchCondition = {
+        ...validCondition,
+        routeType: "oneway",
+        end: { lat: 35.6812, lng: 139.7671 },
+      };
+      // When
+      const errors = validateRouteSearchCondition(condition);
+      // Then
+      expect(errors.find((e) => e.field === "end")).toBeDefined();
     });
   });
 

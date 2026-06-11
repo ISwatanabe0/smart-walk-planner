@@ -40,6 +40,44 @@ describe("buildGoogleMapsUrl", () => {
     });
   });
 
+  describe("片道ルート（start !== end・中間点あり）", () => {
+    const GOAL: Coordinate = { lat: 35.7, lng: 139.78 };
+
+    it("URL の末尾（destination）がゴール地点の座標である", () => {
+      // Given: 片道ルート（末尾はゴール地点そのもの）
+      const mid: Coordinate = { lat: 35.69, lng: 139.775 };
+      const coords: Coordinate[] = [START, mid, GOAL];
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: coords },
+        start: START,
+        end: GOAL,
+      });
+      // When
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // Then: 末尾の座標は除外されずゴールが destination になる
+      const path = url.split("?")[0].replace("https://www.google.com/maps/dir/", "");
+      const stops = path.split("/");
+      expect(stops[stops.length - 1]).toBe(`${GOAL.lat},${GOAL.lng}`);
+    });
+
+    it("start・中間点・ゴールの全座標がパスに含まれる", () => {
+      // Given
+      const mid: Coordinate = { lat: 35.69, lng: 139.775 };
+      const coords: Coordinate[] = [START, mid, GOAL];
+      const route = makeRoute({
+        geometry: { type: "LineString", coordinates: coords },
+        start: START,
+        end: GOAL,
+      });
+      // When
+      const url = buildGoogleMapsUrl(route) ?? "";
+      // Then
+      expect(url).toContain(`${START.lat},${START.lng}`);
+      expect(url).toContain(`${mid.lat},${mid.lng}`);
+      expect(url).toContain(`${GOAL.lat},${GOAL.lng}`);
+    });
+  });
+
   describe("周回ルート（start === end・中間点あり）", () => {
     it("パスベース形式の URL が返る", () => {
       // Given: 周回ルート（start = end、中間点あり）

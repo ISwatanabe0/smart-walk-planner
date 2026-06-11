@@ -35,6 +35,8 @@ describe("ルート検索フロー（インテグレーション）", () => {
 
   const initialCondition: RouteSearchCondition = {
     start: null,
+    end: null,
+    routeType: "loop",
     distanceMeters: DEFAULT_DISTANCE_METERS,
     durationMinutes: null,
     preferences: {
@@ -42,7 +44,6 @@ describe("ルート検索フロー（インテグレーション）", () => {
       avoidTrafficLights: false,
       avoidMainRoads: false,
       includeSightseeing: false,
-      loopRoute: false,
     },
   };
 
@@ -96,6 +97,104 @@ describe("ルート検索フロー（インテグレーション）", () => {
       expect(screen.queryByLabelText(/緯度|lat/i)).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/経度|lng/i)).not.toBeInTheDocument();
       expect(screen.getByText(/地図をタップ/)).toBeInTheDocument();
+    });
+  });
+
+  describe("ルートタイプ切替", () => {
+    it("周回／片道のルートタイプ選択が表示される", () => {
+      // Given
+      // When
+      render(
+        <RouteSearchForm
+          value={initialCondition}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          isLoading={false}
+          errors={[]}
+        />
+      );
+      // Then
+      expect(screen.getByRole("radio", { name: /周回/ })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /片道/ })).toBeInTheDocument();
+    });
+
+    it("周回ルートのときゴール地点セクションは表示されない", () => {
+      // Given: routeType: "loop"
+      // When
+      render(
+        <RouteSearchForm
+          value={initialCondition}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          isLoading={false}
+          errors={[]}
+        />
+      );
+      // Then: 周回ではゴールは不要
+      expect(screen.queryByText("ゴール地点")).not.toBeInTheDocument();
+    });
+
+    it("片道ルートのときゴール地点セクションが表示される", () => {
+      // Given: routeType: "oneway"
+      const onewayCondition: RouteSearchCondition = {
+        ...initialCondition,
+        routeType: "oneway",
+      };
+      // When
+      render(
+        <RouteSearchForm
+          value={onewayCondition}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          isLoading={false}
+          errors={[]}
+        />
+      );
+      // Then
+      expect(screen.getByText("ゴール地点")).toBeInTheDocument();
+      expect(
+        screen.getByText(/ゴール地点はまだ設定されていません/)
+      ).toBeInTheDocument();
+    });
+
+    it("片道を選択すると onChange が routeType: 'oneway' で呼ばれる", async () => {
+      // Given
+      const user = userEvent.setup();
+      render(
+        <RouteSearchForm
+          value={initialCondition}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          isLoading={false}
+          errors={[]}
+        />
+      );
+      // When: 片道を選択
+      await user.click(screen.getByRole("radio", { name: /片道/ }));
+      // Then
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ routeType: "oneway" })
+      );
+    });
+
+    it("片道ルートで end のバリデーションエラーが表示される", () => {
+      // Given: ゴール未設定のエラー
+      const onewayCondition: RouteSearchCondition = {
+        ...initialCondition,
+        routeType: "oneway",
+      };
+      // When
+      render(
+        <RouteSearchForm
+          value={onewayCondition}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          isLoading={false}
+          errors={[{ field: "end", message: "ゴール地点を設定してください" }]}
+        />
+      );
+      // Then
+      expect(screen.getByText("ゴール地点を設定してください")).toBeInTheDocument();
     });
   });
 
