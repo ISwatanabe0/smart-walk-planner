@@ -213,6 +213,7 @@ export default function HomePage() {
                 ? deviceHeading.heading ?? tracking.headingDeg
                 : null
             }
+            userIsMoving={tracking.isMoving}
             navMode={tracking.isTracking}
             onMapClick={canSelectPoint ? handleMapClick : undefined}
             onMoveStart={

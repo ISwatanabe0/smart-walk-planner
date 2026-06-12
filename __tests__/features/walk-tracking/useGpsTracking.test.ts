@@ -150,6 +150,51 @@ describe("useGpsTracking", () => {
     });
   });
 
+  describe("isMoving（移動判定）", () => {
+    it("開始直後は isMoving が false", () => {
+      // Given / When
+      const { result } = renderHook(() => useGpsTracking());
+      act(() => result.current.startTracking());
+      // Then: まだ移動していない
+      expect(result.current.isMoving).toBe(false);
+    });
+
+    it("移動が記録されると isMoving が true になる", () => {
+      // Given
+      const { result } = renderHook(() => useGpsTracking());
+      act(() => result.current.startTracking());
+      act(() => successCb?.(makePosition(TOKYO.lat, TOKYO.lng, 10)));
+      // When: 約100m移動
+      act(() =>
+        successCb?.(makePosition(TOKYO.lat + 0.0009, TOKYO.lng, 10))
+      );
+      // Then: アバターは歩行アニメに切り替わる
+      expect(result.current.isMoving).toBe(true);
+    });
+
+    it("移動が止まって5秒以上経つと isMoving が false に戻る", () => {
+      // Given: 移動後に時間経過を模擬
+      jest.useFakeTimers();
+      try {
+        const { result } = renderHook(() => useGpsTracking());
+        act(() => result.current.startTracking());
+        act(() => successCb?.(makePosition(TOKYO.lat, TOKYO.lng, 10)));
+        act(() =>
+          successCb?.(makePosition(TOKYO.lat + 0.0009, TOKYO.lng, 10))
+        );
+        expect(result.current.isMoving).toBe(true);
+        // When: 6秒間動かない（経過時間タイマーで再レンダーされる）
+        act(() => {
+          jest.advanceTimersByTime(6000);
+        });
+        // Then: 待機アニメに戻る
+        expect(result.current.isMoving).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   describe("stopTracking", () => {
     it("clearWatch を呼び、isTracking が false になる", () => {
       // Given

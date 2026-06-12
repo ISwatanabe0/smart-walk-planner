@@ -13,6 +13,8 @@ export type GpsTracking = {
   accuracyMeters: number | null;
   /** 進行方位（北=0°、時計回り。移動するまでは null） */
   headingDeg: number | null;
+  /** 直近数秒以内に移動したか（アバターの歩行/待機アニメ切替に使う） */
+  isMoving: boolean;
   /** 歩いた軌跡の座標列 */
   trail: Coordinate[];
   /** 累計歩行距離（メートル） */
@@ -35,6 +37,9 @@ const MIN_MOVE_METERS = 5;
 
 /** これより測位精度が悪い（数値が大きい）点は軌跡に採用しない */
 const MAX_ACCURACY_METERS = 50;
+
+/** 最後の移動からこの時間（ミリ秒）動きがなければ「停止中」とみなす */
+const MOVING_TIMEOUT_MS = 5000;
 
 // Wake Lock API はブラウザの lib 型に含まれないことがあるため最小限の型を定義する
 type WakeLockSentinelLike = {
@@ -77,6 +82,7 @@ export function useGpsTracking(): GpsTracking {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const lastPointRef = useRef<Coordinate | null>(null);
+  const lastMoveAtRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
 
   const releaseWakeLock = useCallback(async () => {
@@ -140,6 +146,7 @@ export function useGpsTracking(): GpsTracking {
     setAccuracyMeters(null);
     setHeadingDeg(null);
     lastPointRef.current = null;
+    lastMoveAtRef.current = null;
     startTimeRef.current = Date.now();
     setIsTracking(true);
 
@@ -170,6 +177,7 @@ export function useGpsTracking(): GpsTracking {
           return;
         }
         lastPointRef.current = coord;
+        lastMoveAtRef.current = Date.now();
         setTrail((prev) => [...prev, coord]);
         setWalkedMeters((prev) => prev + moved);
         // 直前の採用点からの移動方向を進行方位とする
@@ -221,11 +229,18 @@ export function useGpsTracking(): GpsTracking {
     };
   }, [releaseWakeLock]);
 
+  // elapsedSeconds のタイマーで毎秒再レンダーされるため、ここでの計算で十分追従する
+  const isMoving =
+    isTracking &&
+    lastMoveAtRef.current !== null &&
+    Date.now() - lastMoveAtRef.current < MOVING_TIMEOUT_MS;
+
   return {
     isTracking,
     currentPosition,
     accuracyMeters,
     headingDeg,
+    isMoving,
     trail,
     walkedMeters,
     elapsedSeconds,

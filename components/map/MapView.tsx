@@ -32,9 +32,11 @@ type MapViewProps = {
   userPosition?: Coordinate | null;
   /** トラッキングで歩いた軌跡 */
   userTrail?: Coordinate[];
-  /** 端末の向き（北=0°）。ナビ時に地図をこの方位へ回転させる */
+  /** 端末の向き（北=0°）。現在地マーカーの向き表示に使う */
   userHeadingDeg?: number | null;
-  /** ナビ（追従・ヘディングアップ・3D）モードか */
+  /** 移動中か（アバターの歩行/待機アニメ切替） */
+  userIsMoving?: boolean;
+  /** ナビ（現在地追従・3D視点）モードか */
   navMode?: boolean;
   /** 指定すると地図タップで地点を選択できる */
   onMapClick?: (coordinate: Coordinate) => void;
@@ -55,6 +57,7 @@ export function MapView({
   userPosition = null,
   userTrail = [],
   userHeadingDeg = null,
+  userIsMoving = false,
   navMode = false,
   onMapClick,
   onMoveStart,
@@ -80,6 +83,7 @@ export function MapView({
         userPosition={userPosition}
         userTrail={userTrail}
         bearingDeg={userHeadingDeg}
+        isMoving={userIsMoving}
         navMode={navMode}
         onMapClick={onMapClick}
         onMoveStart={onMoveStart}

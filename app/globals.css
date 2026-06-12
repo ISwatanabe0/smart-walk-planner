@@ -485,6 +485,80 @@ body {
   }
 }
 
+/* ---- Walk avatar (歩くキャラクター) ---- */
+.walk-avatar {
+  width: 40px;
+  height: 56px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+.walk-avatar .avatar-body {
+  transform-origin: 20px 40px;
+}
+.walk-avatar .avatar-leg-left,
+.walk-avatar .avatar-leg-right {
+  transform-origin: 50% 40px;
+}
+.walk-avatar .avatar-arm-left,
+.walk-avatar .avatar-arm-right {
+  transform-origin: 50% 27px;
+}
+
+/* 待機: ゆったり呼吸するように上下 */
+.walk-avatar.idle .avatar-body {
+  animation: avatar-breathe 2.4s ease-in-out infinite;
+}
+@keyframes avatar-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.5px) scaleY(0.98); }
+}
+
+/* 歩行: 体が弾み、手足が交互に振れる */
+.walk-avatar.walking .avatar-body {
+  animation: avatar-bob 0.6s ease-in-out infinite;
+}
+.walk-avatar.walking .avatar-leg-left {
+  animation: avatar-swing 0.6s ease-in-out infinite;
+}
+.walk-avatar.walking .avatar-leg-right {
+  animation: avatar-swing 0.6s ease-in-out infinite reverse;
+}
+.walk-avatar.walking .avatar-arm-left {
+  animation: avatar-swing 0.6s ease-in-out infinite reverse;
+}
+.walk-avatar.walking .avatar-arm-right {
+  animation: avatar-swing 0.6s ease-in-out infinite;
+}
+@keyframes avatar-bob {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px); }
+  75% { transform: translateY(-2px); }
+}
+@keyframes avatar-swing {
+  0%, 100% { transform: rotate(18deg); }
+  50% { transform: rotate(-18deg); }
+}
+.walk-avatar .avatar-shadow {
+  transform-origin: 20px 53px;
+}
+.walk-avatar.walking .avatar-shadow {
+  animation: avatar-shadow-pulse 0.6s ease-in-out infinite;
+}
+@keyframes avatar-shadow-pulse {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .walk-avatar .avatar-body,
+  .walk-avatar .avatar-leg-left,
+  .walk-avatar .avatar-leg-right,
+  .walk-avatar .avatar-arm-left,
+  .walk-avatar .avatar-arm-right,
+  .walk-avatar .avatar-shadow {
+    animation: none;
+  }
+}
+
 /* ---- Loading spinner ---- */
 .spinner-container {
   display: flex;

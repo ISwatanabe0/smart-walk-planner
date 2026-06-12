@@ -12,6 +12,7 @@ function makeTracking(overrides: Partial<GpsTracking> = {}): GpsTracking {
     currentPosition: null,
     accuracyMeters: null,
     headingDeg: null,
+    isMoving: false,
     trail: [],
     walkedMeters: 0,
     elapsedSeconds: 0,
