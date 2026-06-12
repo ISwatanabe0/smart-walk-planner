@@ -14,9 +14,12 @@ const STYLE_URL =
   process.env.NEXT_PUBLIC_MAP_STYLE_URL ??
   "https://tiles.openfreemap.org/styles/liberty";
 
-/** ナビ（ヘディングアップ）時のズーム・傾き */
+/** ナビ（追従）時のズーム・傾き */
 const NAV_ZOOM = 17.5;
-const NAV_PITCH = 55;
+const NAV_PITCH = 60;
+
+/** 通常時の傾き。常に立体的な奥行きのある視点で表示する */
+const DEFAULT_PITCH = 45;
 
 type MapLibreMapProps = {
   center: Coordinate;
@@ -89,6 +92,7 @@ export function MapLibreMap(props: MapLibreMapProps) {
       style: STYLE_URL,
       center: [props.center.lng, props.center.lat],
       zoom: props.zoom,
+      pitch: DEFAULT_PITCH,
       attributionControl: { compact: true },
     });
     mapRef.current = map;
@@ -344,8 +348,8 @@ export function MapLibreMap(props: MapLibreMapProps) {
     }
 
     if (wasNavRef.current) {
-      // ナビ終了時は傾きだけ戻す（向きは維持）
-      map.easeTo({ pitch: 0, duration: 500 });
+      // ナビ終了時は通常の傾きへ（立体的な奥行きは維持、向きも維持）
+      map.easeTo({ pitch: DEFAULT_PITCH, duration: 500 });
       wasNavRef.current = false;
       return;
     }

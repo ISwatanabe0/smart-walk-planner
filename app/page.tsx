@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RouteSearchForm } from "@/features/route-search/components/RouteSearchForm";
 import { RouteResultPanel } from "@/features/route-result/components/RouteResultPanel";
 import { MapView } from "@/components/map/MapView";
@@ -46,6 +46,35 @@ export default function HomePage() {
   useEffect(() => {
     setIsMapFullscreen(tracking.isTracking);
   }, [tracking.isTracking]);
+
+  // 起動時に現在地を取得し、未設定なら出発地点として自動設定する
+  // （拒否・失敗時は従来どおり地図タップ／ボタンで手動設定）
+  const startConditionRef = useRef(condition.start);
+  startConditionRef.current = condition.start;
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        // GPS取得を待つ間にユーザーが地点を選んでいたら上書きしない
+        if (startConditionRef.current === null) {
+          updateCondition({
+            start: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            },
+          });
+        }
+      },
+      () => {
+        // 何もしない（手動選択にフォールバック）
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+    // 初回マウント時のみ実行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
