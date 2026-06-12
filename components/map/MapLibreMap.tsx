@@ -364,5 +364,38 @@ export function MapLibreMap(props: MapLibreMapProps) {
     }
   }, [props.navMode, props.userPosition, props.center, props.zoom]);
 
-  return <div ref={containerRef} style={{ height: "100%", width: "100%" }} />;
+  // 「向いている方向に地図を合わせる」: 現在地を中心に、地図をコンパス方位へ回す
+  const handleFaceHeading = () => {
+    const map = mapRef.current;
+    if (map === null) {
+      return;
+    }
+    const { userPosition, bearingDeg } = propsRef.current;
+    const camera: maplibregl.EaseToOptions = {
+      bearing: bearingDeg ?? 0,
+      pitch: NAV_PITCH,
+      duration: 500,
+    };
+    if (userPosition !== null) {
+      camera.center = [userPosition.lng, userPosition.lat];
+      camera.zoom = NAV_ZOOM;
+    }
+    map.easeTo(camera);
+  };
+
+  return (
+    <div className="maplibre-wrap">
+      <div ref={containerRef} className="maplibre-canvas" />
+      {props.navMode && (
+        <button
+          type="button"
+          className="map-face-heading-btn"
+          aria-label="向いている方向に地図を合わせる"
+          onClick={handleFaceHeading}
+        >
+          🧭
+        </button>
+      )}
+    </div>
+  );
 }
