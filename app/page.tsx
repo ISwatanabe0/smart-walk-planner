@@ -29,7 +29,11 @@ export default function HomePage() {
 
   const [view, setView] = useState<PageView>("search");
   const [routes, setRoutes] = useState<WalkRoute[]>([]);
-  const guidance = useWalkGuidance(tracking, routes[0] ?? null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+
+  const selectedRoute =
+    routes.find((r) => r.routeId === selectedRouteId) ?? routes[0] ?? null;
+  const guidance = useWalkGuidance(tracking, selectedRoute);
 
   // 散歩スタート時に、現在地取得と方位センサー許可（iOSはユーザー操作必須）を同時に行う
   const handleStartTracking = () => {
@@ -77,7 +81,6 @@ export default function HomePage() {
   }, []);
 
   const mapCenter: Coordinate | null = condition.start;
-  const selectedRoute = routes[0] ?? null;
   // 地点の選択（地図タップ／ピンのドラッグ）は検索画面かつ非トラッキング時のみ有効
   const canSelectPoint = view === "search" && !isLoading && !tracking.isTracking;
   const isOneway = condition.routeType === "oneway";
@@ -106,6 +109,7 @@ export default function HomePage() {
       const results = await submitSearch();
       if (results.length > 0) {
         setRoutes(results);
+        setSelectedRouteId(results[0].routeId);
         setView("result");
       }
       // validation errors → stay on search view, errors shown in form
@@ -166,6 +170,8 @@ export default function HomePage() {
           />
           <RouteResultPanel
             routes={routes}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={setSelectedRouteId}
             onOpenGoogleMaps={handleOpenGoogleMaps}
             onChangeCondition={() => setView("search")}
             onRetry={handleRetry}

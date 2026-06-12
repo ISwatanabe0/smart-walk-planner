@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouteResult } from "../hooks/useRouteResult";
 import { RouteSummary } from "@/components/route/RouteSummary";
 import { RouteTags } from "@/components/route/RouteTags";
 import { RouteSpotList } from "@/components/route/RouteSpotList";
@@ -12,6 +11,9 @@ import type { WalkRoute } from "@/types/route";
 
 type RouteResultPanelProps = {
   routes: WalkRoute[];
+  /** 選択中ルートのID（地図表示と一致させるため親が管理する） */
+  selectedRouteId: string | null;
+  onSelectRoute: (routeId: string) => void;
   onOpenGoogleMaps: (route: WalkRoute) => void;
   onChangeCondition: () => void;
   onRetry: () => void;
@@ -19,11 +21,14 @@ type RouteResultPanelProps = {
 
 export function RouteResultPanel({
   routes,
+  selectedRouteId,
+  onSelectRoute,
   onOpenGoogleMaps,
   onChangeCondition,
   onRetry,
 }: RouteResultPanelProps) {
-  const { selectedRouteId, selectedRoute, selectRoute } = useRouteResult(routes);
+  const selectedRoute =
+    routes.find((r) => r.routeId === selectedRouteId) ?? routes[0] ?? null;
 
   return (
     <div>
@@ -31,8 +36,8 @@ export function RouteResultPanel({
         <SectionCard title="候補ルート">
           <RouteCandidateList
             routes={routes}
-            selectedRouteId={selectedRouteId}
-            onSelect={selectRoute}
+            selectedRouteId={selectedRoute?.routeId ?? null}
+            onSelect={onSelectRoute}
           />
         </SectionCard>
       )}
