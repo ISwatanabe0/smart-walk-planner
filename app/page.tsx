@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RouteSearchForm } from "@/features/route-search/components/RouteSearchForm";
 import { RouteResultPanel } from "@/features/route-result/components/RouteResultPanel";
 import { MapView } from "@/components/map/MapView";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useRouteSearch } from "@/features/route-search/hooks/useRouteSearch";
 import { useGpsTracking } from "@/features/walk-tracking/hooks/useGpsTracking";
 import { useDeviceHeading } from "@/features/walk-tracking/hooks/useDeviceHeading";
@@ -38,6 +39,13 @@ export default function HomePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmDialogRoute, setConfirmDialogRoute] =
     useState<WalkRoute | null>(null);
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+
+  // 散歩の開始/終了に合わせて地図の全画面表示を自動で切り替える
+  // （散歩中でも手動トグルで解除・再開できる）
+  useEffect(() => {
+    setIsMapFullscreen(tracking.isTracking);
+  }, [tracking.isTracking]);
 
   const mapCenter: Coordinate | null = condition.start;
   const selectedRoute = routes[0] ?? null;
@@ -101,10 +109,59 @@ export default function HomePage() {
     setConfirmDialogRoute(null);
   };
 
+  const panelContent = (
+    <>
+      {isLoading && (
+        <LoadingSpinner
+          message="ルートを作成中です..."
+          subMessage="道路情報や景観ポイントを確認しています"
+        />
+      )}
+
+      {!isLoading && view === "search" && (
+        <RouteSearchForm
+          value={condition}
+          onChange={(c) => updateCondition(c)}
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          errors={errors}
+        />
+      )}
+
+      {!isLoading && view === "result" && (
+        <>
+          <TrackingPanel
+            tracking={tracking}
+            onStart={handleStartTracking}
+            compassPermission={deviceHeading.permission}
+          />
+          <RouteResultPanel
+            routes={routes}
+            onOpenGoogleMaps={handleOpenGoogleMaps}
+            onChangeCondition={() => setView("search")}
+            onRetry={handleRetry}
+          />
+        </>
+      )}
+
+      {!isLoading && view === "error" && (
+        <ErrorMessage
+          title="ルートを取得できませんでした"
+          message={
+            errorMessage ??
+            "条件に合うルートが見つかりませんでした。条件を緩めて再検索してください。"
+          }
+          onRetry={handleRetry}
+          onBack={() => setView("search")}
+        />
+      )}
+    </>
+  );
+
   return (
     <>
       <header className="app-header">SmartWalk</header>
-      <main className="app-main">
+      <main className={isMapFullscreen ? "app-main map-fullscreen" : "app-main"}>
         <div className="map-area">
           <MapView
             center={mapCenter}
@@ -116,7 +173,11 @@ export default function HomePage() {
             }
             userPosition={tracking.isTracking ? tracking.currentPosition : null}
             userTrail={tracking.isTracking ? tracking.trail : []}
-            userHeadingDeg={tracking.isTracking ? deviceHeading.heading : null}
+            userHeadingDeg={
+              tracking.isTracking
+                ? deviceHeading.heading ?? tracking.headingDeg
+                : null
+            }
             navMode={tracking.isTracking}
             onMapClick={canSelectPoint ? handleMapClick : undefined}
             onMoveStart={
@@ -132,57 +193,29 @@ export default function HomePage() {
             hint={mapHint}
           />
           {tracking.isTracking && <GuidanceBanner guidance={guidance} />}
+
+          {(view === "result" || isMapFullscreen) && (
+            <button
+              type="button"
+              className="map-fullscreen-toggle"
+              aria-label={
+                isMapFullscreen ? "全画面表示を終了" : "地図を全画面表示"
+              }
+              onClick={() => setIsMapFullscreen((prev) => !prev)}
+            >
+              {isMapFullscreen ? "✕" : "⛶"}
+            </button>
+          )}
         </div>
 
-        <aside className="sidebar">
-          <div className="sidebar-inner">
-            {isLoading && (
-              <LoadingSpinner
-                message="ルートを作成中です..."
-                subMessage="道路情報や景観ポイントを確認しています"
-              />
-            )}
-
-            {!isLoading && view === "search" && (
-              <RouteSearchForm
-                value={condition}
-                onChange={(c) => updateCondition(c)}
-                onSubmit={handleSubmit}
-                isLoading={isLoading}
-                errors={errors}
-              />
-            )}
-
-            {!isLoading && view === "result" && (
-              <>
-                <TrackingPanel
-                  tracking={tracking}
-                  onStart={handleStartTracking}
-                  compassPermission={deviceHeading.permission}
-                />
-                <RouteResultPanel
-                  routes={routes}
-                  onOpenGoogleMaps={handleOpenGoogleMaps}
-                  onChangeCondition={() => setView("search")}
-                  onRetry={handleRetry}
-                />
-              </>
-            )}
-
-            {!isLoading && view === "error" && (
-              <ErrorMessage
-                title="ルートを取得できませんでした"
-                message={
-                  errorMessage ??
-                  "条件に合うルートが見つかりませんでした。条件を緩めて再検索してください。"
-                }
-                onRetry={handleRetry}
-                onBack={() => setView("search")}
-              />
-            )}
-          </div>
-        </aside>
+        {!isMapFullscreen && (
+          <aside className="sidebar">
+            <div className="sidebar-inner">{panelContent}</div>
+          </aside>
+        )}
       </main>
+
+      {isMapFullscreen && <BottomSheet>{panelContent}</BottomSheet>}
 
       {tracking.isTracking && (
         <GoalCelebration

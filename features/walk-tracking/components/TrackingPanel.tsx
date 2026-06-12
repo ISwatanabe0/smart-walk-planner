@@ -49,8 +49,9 @@ export function TrackingPanel({
       {!isTracking ? (
         <div className="tracking-idle">
           <p className="form-hint">
-            現在地を追跡して、歩いた軌跡と距離を記録します。地図は向いている方角に
-            合わせて回転します（方位センサーの利用を許可してください）。
+            現在地を追跡して、歩いた軌跡と距離を記録します。現在地マーカーは
+            向いている方角を指します（方位センサーの利用を許可してください）。
+            地図は二本指でお好みの向きに回転できます。
           </p>
           <Button onClick={handleStart} fullWidth>
             ▶ 散歩をスタート
@@ -102,7 +103,7 @@ export function TrackingPanel({
 
           {compassUnavailable && (
             <p className="form-hint">
-              ※ 方位センサーが使えないため、地図は回転しません（北が上のまま表示します）。
+              ※ 方位センサーが使えないため、マーカーの向きはGPSの進行方向から推定します。
             </p>
           )}
 
