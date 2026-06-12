@@ -384,8 +384,8 @@ export function MapLibreMap(props: MapLibreMapProps) {
   };
 
   return (
-    <div className="maplibre-wrap">
-      <div ref={containerRef} className="maplibre-canvas" />
+    <>
+      <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
       {props.navMode && (
         <button
           type="button"
@@ -396,6 +396,6 @@ export function MapLibreMap(props: MapLibreMapProps) {
           🧭
         </button>
       )}
-    </div>
+    </>
   );
 }

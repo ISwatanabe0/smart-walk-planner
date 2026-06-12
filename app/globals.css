@@ -262,15 +262,6 @@ body {
 .map-container {
   position: relative;
 }
-.maplibre-wrap {
-  position: relative;
-  height: 100%;
-  width: 100%;
-}
-.maplibre-canvas {
-  position: absolute;
-  inset: 0;
-}
 
 /* 「向いている方向に地図を合わせる」コンパスボタン */
 .map-face-heading-btn {
